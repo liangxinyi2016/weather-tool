@@ -1,0 +1,242 @@
+/* ============================================================
+ * 气象简报机场预警截图 - 预览弹窗
+ * 设计原则：Apple Design Language
+ *   - 毛玻璃（frosted glass）+ 大圆角
+ *   - 弹性缓动动画（cubic-bezier overshoot）
+ *   - 多层半透明
+ *   - 微交互（按钮 hover/active 反馈）
+ *
+ * z-index 层级：
+ *   - 截图弹窗：1000（高于 log-overlay 200 / user-modal 300，与 wt-modal 同层）
+ * ============================================================ */
+
+/* 全屏 fixed 遮罩容器 */
+.screenshot-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.screenshot-modal[hidden] {
+    display: none !important;
+}
+
+/* 遮罩层：毛玻璃背景，点击关闭 */
+.screenshot-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 25, 40, 0.35);
+    backdrop-filter: blur(8px) saturate(140%);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    cursor: pointer;
+    animation: screenshot-modal-fade-in 0.22s ease-out;
+}
+
+@keyframes screenshot-modal-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* 主面板：大圆角 + 毛玻璃 + 弹性入场动画
+   宽度说明：截图 canvas 物理宽度 1200px（高清 2x），留 24px padding，所以 panel 至少 1248px
+   但小屏不能超出屏幕，用 min(1248px, 96vw) */
+.screenshot-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(1248px, 96vw);
+    max-height: 92vh;
+    padding: 24px 24px 20px 24px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 20px;
+    box-shadow:
+        0 24px 48px rgba(0, 0, 0, 0.18),
+        0 8px 16px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+                 "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    color: #1d1d1f;
+    animation: screenshot-modal-spring 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center center;
+}
+
+/* 弹性入场：scale 0.85→1 + translateY 12px→0 */
+@keyframes screenshot-modal-spring {
+    0% {
+        opacity: 0;
+        transform: scale(0.85) translateY(12px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 右上角关闭按钮 */
+.screenshot-modal__close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    appearance: none;
+    border: 0;
+    background: rgba(0, 0, 0, 0.04);
+    color: #6b7280;
+    font-size: 24px;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 180ms ease, color 180ms ease, transform 200ms ease;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 2;
+}
+
+.screenshot-modal__close:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #1d1d1f;
+}
+
+.screenshot-modal__close:active {
+    transform: scale(0.92);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+/* 标题 */
+.screenshot-modal__title {
+    margin: 0;
+    padding-right: 36px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+}
+
+/* 顶部 toast 提示（已复制 / 剪贴板被拒绝） */
+.screenshot-modal__toast {
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    animation: screenshot-toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 1px solid transparent;
+}
+
+.screenshot-modal__toast[hidden] {
+    display: none !important;
+}
+
+/* toast 成功态：淡绿底 + 深绿字 */
+.screenshot-modal__toast--success {
+    background: rgba(220, 252, 231, 0.85);
+    color: #15803d;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* toast 警告态：淡黄底 + 橙字 */
+.screenshot-modal__toast--warn {
+    background: rgba(254, 243, 199, 0.85);
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* toast 错误态：淡红底 + 红字 */
+.screenshot-modal__toast--error {
+    background: rgba(254, 226, 226, 0.85);
+    color: #b91c1c;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+@keyframes screenshot-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 图片容器：固定最大尺寸，超出滚动 */
+.screenshot-modal__img-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: 8px;
+    background: rgba(248, 250, 253, 0.55);
+    border: 1px solid rgba(180, 190, 210, 0.35);
+    border-radius: 12px;
+}
+
+/* 截图预览：
+   - 强制 width: 100% 让图片按父容器宽度完整缩放，避免被裁切
+   - 高度按比例自适应
+   - 父容器 overflow: auto 在小屏提供滚动条 */
+.screenshot-modal__img {
+    display: block;
+    width: 100%;
+    max-width: 1200px;          /* 等于 canvas 物理宽度 */
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    background: #FFFFFF;
+    object-fit: contain;
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
+/* 底部按钮区 */
+.screenshot-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.screenshot-modal__actions .btn {
+    min-width: 96px;
+    padding: 8px 18px;
+    font-size: 13.5px;
+}
+
+/* 窄屏适配 */
+@media (max-width: 640px) {
+    .screenshot-modal {
+        padding: 12px;
+    }
+
+    .screenshot-modal__panel {
+        padding: 18px 16px 14px 16px;
+        border-radius: 18px;
+    }
+
+    .screenshot-modal__title {
+        font-size: 15px;
+    }
+
+    .screenshot-modal__actions .btn {
+        min-width: 80px;
+        padding: 7px 14px;
+        font-size: 13px;
+    }
+}

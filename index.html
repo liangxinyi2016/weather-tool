@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#dceefb" media="(prefers-color-scheme: light)" />
+    <meta name="description" content="气象业务辅助工具：报文翻译、风/沙尘/结冰通报导出、机场预警模板发布、次日风险记录" />
+    <title>气象业务辅助工具</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22s%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23FFF6B0%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23FFB627%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22b%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%237ec8ff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233a7bd5%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22url(%23b)%22%2F%3E%3Cg%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.95%22%3E%3Cline%20x1%3D%2222%22%20y1%3D%225%22%20x2%3D%2222%22%20y2%3D%2210%22%2F%3E%3Cline%20x1%3D%225%22%20y1%3D%2222%22%20x2%3D%2210%22%20y2%3D%2222%22%2F%3E%3Cline%20x1%3D%229%22%20y1%3D%229%22%20x2%3D%2212.5%22%20y2%3D%2212.5%22%2F%3E%3Cline%20x1%3D%2235%22%20y1%3D%229%22%20x2%3D%2231.5%22%20y2%3D%2212.5%22%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2222%22%20r%3D%228%22%20fill%3D%22url(%23s)%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M18%2049%20C%2014.5%2049%2011.5%2046.2%2011.5%2042.8%20C%2011.5%2039.6%2014%2037%2017%2036.7%20C%2017.7%2032.6%2021.3%2029.5%2025.5%2029.5%20C%2029.2%2029.5%2032.4%2032%2033.6%2035.4%20C%2034.6%2034.7%2035.8%2034.3%2037%2034.3%20C%2040.8%2034.3%2044%2037.4%2044.2%2041.2%20C%2047.3%2041.5%2049.5%2043.9%2049.5%2046.8%20C%2049.5%2049.7%2047.2%2051.8%2044%2051.8%20L%2018%2051.8%20Z%22%20fill%3D%22%23FFFFFF%22%2F%3E%3C%2Fsvg%3E" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+    <link rel="stylesheet" href="assets/css/screenshot-modal.css" />
+    <link rel="stylesheet" href="assets/components/segmented-control.css" />
+
+    <!-- 第三方依赖预加载：让浏览器在解析 body 时即可开始下载，提升首屏交互响应 -->
+    <link rel="preload" as="script" href="assets/vendor/html2canvas.min.js" />
+    <link rel="preload" as="script" href="assets/vendor/xlsx.bundle.js" />
+</head>
+<body>
+    <!-- 背景渐变层（多层半透明基础） -->
+    <div class="bg-layer bg-layer-1" aria-hidden="true"></div>
+    <div class="bg-layer bg-layer-2" aria-hidden="true"></div>
+    <div class="bg-layer bg-layer-3" aria-hidden="true"></div>
+
+    <!-- 顶部毛玻璃标题栏 -->
+    <header class="topbar" id="topbar">
+        <div class="topbar-inner">
+            <div class="topbar-main">
+                <div class="topbar-brand">
+                    <div class="brand-mark" id="brand-mark" role="button" tabindex="0" aria-label="点我一下，有惊喜" title="点我一下，有惊喜">
+                        <svg viewBox="0 0 32 32" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="bm-sun" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#FFF6B0"/>
+                                    <stop offset="100%" stop-color="#FFB627"/>
+                                </linearGradient>
+                            </defs>
+                            <!-- 太阳光线 -->
+                            <g stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" opacity="0.95">
+                                <line x1="11" y1="2.8" x2="11" y2="4.6"/>
+                                <line x1="2.8" y1="11" x2="4.6" y2="11"/>
+                                <line x1="4.7" y1="4.7" x2="6" y2="6"/>
+                                <line x1="17.3" y1="4.7" x2="16" y2="6"/>
+                            </g>
+                            <!-- 太阳本体 -->
+                            <circle cx="11" cy="11" r="3.6" fill="url(#bm-sun)" stroke="#FFFFFF" stroke-width="0.7"/>
+                            <!-- 云朵 -->
+                            <path d="M9 24.4 C 7.2 24.4 5.8 23 5.8 21.3 C 5.8 19.6 7 18.5 8.6 18.4 C 9 16.4 10.8 14.9 12.9 14.9 C 14.7 14.9 16.3 16 16.9 17.6 C 17.4 17.3 18 17.1 18.6 17.1 C 20.5 17.1 22.1 18.6 22.2 20.5 C 23.6 20.7 24.7 21.9 24.7 23.3 C 24.7 24.7 23.5 25.7 22 25.7 L 9 25.7 Z" fill="#FFFFFF"/>
+                            <!-- 云朵底部柔光（增强立体感） -->
+                            <path d="M9 25 L 22 25 C 23.5 25 24.7 24 24.7 22.6 C 24.7 21.4 23.6 20.3 22.2 20.1 C 22.1 18.4 20.5 17.1 18.6 17.1 C 18 17.1 17.4 17.3 16.9 17.6 C 16.3 16 14.7 14.9 12.9 14.9 C 10.8 14.9 9 16.4 8.6 18.4 C 7 18.5 5.8 19.6 5.8 21.3 C 5.8 23 7.2 24.4 9 24.4 Z" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <div class="brand-title">气象业务辅助工具</div>
+                        <div class="brand-subtitle">本地版 · 离线可用</div>
+                    </div>
+                    <!-- 时钟展示（标题右侧） -->
+                    <div class="clock-pill" id="clock-pill">
+                        <span class="clock-icon" aria-hidden="true">⏰</span>
+                        <span class="clock-display">
+                            <span class="flip-clock" aria-hidden="true">
+                                <span class="flip-seg" id="flip-h1">0</span>
+                                <span class="flip-seg" id="flip-h2">0</span>
+                                <span class="flip-colon">:</span>
+                                <span class="flip-seg" id="flip-m1">0</span>
+                                <span class="flip-seg" id="flip-m2">0</span>
+                            </span>
+                            <span class="clock-date" id="clock-date">----/--/--</span>
+                        </span>
+                    </div>
+                </div>
+                <!-- 5 种天气动画：水平均匀分布，置于品牌与标签栏之间 -->
+                <div class="topbar-weather" aria-hidden="true">
+                    <div class="tw-item">
+                        <div class="tw-icon tw-sun">
+                            <div class="sun-rays"></div>
+                            <div class="sun-core"></div>
+                            <div class="sun-glow"></div>
+                        </div>
+                        <div class="tw-label">晴</div>
+                    </div>
+                    <div class="tw-item">
+                        <div class="tw-icon tw-wind">
+                            <div class="wind-line wl1"></div>
+                            <div class="wind-line wl2"></div>
+                            <div class="wind-line wl3"></div>
+                        </div>
+                        <div class="tw-label">风</div>
+                    </div>
+                    <div class="tw-item">
+                        <div class="tw-icon tw-rain">
+                            <div class="rain-cloud"></div>
+                            <div class="rain-drop rd1"></div>
+                            <div class="rain-drop rd2"></div>
+                            <div class="rain-drop rd3"></div>
+                        </div>
+                        <div class="tw-label">雨</div>
+                    </div>
+                    <div class="tw-item">
+                        <div class="tw-icon tw-thunder">
+                            <div class="thunder-cloud"></div>
+                            <div class="thunder-bolt"></div>
+                        </div>
+                        <div class="tw-label">雷</div>
+                    </div>
+                    <div class="tw-item">
+                        <div class="tw-icon tw-hail">
+                            <div class="hail-cloud"></div>
+                            <div class="hail-stone hs1"></div>
+                            <div class="hail-stone hs2"></div>
+                            <div class="hail-stone hs3"></div>
+                            <div class="hail-stone hs4"></div>
+                        </div>
+                        <div class="tw-label">雹</div>
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <nav class="tabs" id="tabs" role="tablist">
+                        <button class="tab active" role="tab" data-tab="warning" aria-selected="true">预警发布</button>
+                        <button class="tab" role="tab" data-tab="wind-dust" aria-selected="false">大风/沙尘/结冰天气发布工具</button>
+                        <button class="tab" role="tab" data-tab="translate" aria-selected="false">气象报文翻译工具</button>
+                        <button class="tab" role="tab" data-tab="next-risk" aria-selected="false">次日风险制作工具</button>
+                    </nav>
+                    <!-- 右上角用户胶囊：展示当前用户名，点击可修改 -->
+                    <button class="user-pill" id="user-pill" type="button"
+                        title="点击设置/修改用户名" aria-label="当前用户">
+                        <span class="user-avatar" id="user-pill-initial">?</span>
+                        <span class="user-name" id="user-pill-name">未设置</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 内容容器 -->
+    <h1 class="visually-hidden">气象业务辅助工具</h1>
+    <main class="content" id="content">
+        <!-- 发布机场预警 -->
+        <section class="panel" id="panel-warning" data-panel="warning">
+            <div class="panel-header">
+                <h2>发布机场预警</h2>
+                <p class="panel-desc">按气象台现行模板（橙色预警 / 低云低能见度）填写要素，实时生成预览卡，支持一键截图与导出历史预警记录。</p>
+            </div>
+
+            <div class="grid-2">
+                <!-- 左侧：模板表单 -->
+                <div class="card glass">
+                    <div class="card-title">模板表单</div>
+                    <form id="wt-form" class="form" autocomplete="off">
+                        <div class="row">
+                            <label class="field">
+                                <span class="field-label">预警机场<i class="req">*</i></span>
+                                <div class="wt-airport-input-wrap">
+                                    <input type="text" name="airport" id="wt-airport-input"
+                                        placeholder="例:沈阳 / ZYTX / SHE…" maxlength="20" autocomplete="off" />
+                                    <div class="wt-airport-suggest" id="wt-airport-suggest" hidden></div>
+                                </div>
+                            </label>
+                            <label class="field">
+                                <span class="field-label">预警等级<i class="req">*</i></span>
+                                <input type="text" name="level" id="wt-level"
+                                    maxlength="2" inputmode="numeric"
+                                    placeholder="1=黄色 2=橙色 3=红色…" spellcheck="false" />
+                            </label>
+                            <label class="field">
+                                <span class="field-label">天气类型<i class="req">*</i></span>
+                                <input type="text" name="phenomenon" placeholder="例:雷雨" maxlength="20" />
+                            </label>
+                        </div>
+
+                        <!-- 发布序号：自动生成（日期+三位序号），输入框隐藏 -->
+                        <div class="row wt-field-hidden">
+                            <label class="field">
+                                <span class="field-label">发布序号</span>
+                                <input type="text" name="serialNo" placeholder="自动生成…" maxlength="30" />
+                            </label>
+                            <label class="field grow">
+                                <span class="field-label">发布时间<i class="req">*</i></span>
+                                <div style="display:flex; gap:6px; align-items:flex-end;">
+                                    <input type="text" name="publishTime" id="wt-publish-time"
+                                        placeholder="自动填充为点击截图时的时间…" maxlength="20"
+                                        style="flex:1;" />
+                                    <button type="button" class="btn ghost wt-refresh-btn" id="wt-refresh-time"
+                                        title="刷新为当前时间">刷新</button>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- 气象席电话：固定 0871-67087127，制作人：自动取当前用户名，输入框隐藏 -->
+                        <div class="row wt-field-hidden">
+                            <label class="field grow">
+                                <span class="field-label">气象席电话</span>
+                                <input type="text" name="phone" placeholder="0871-67087127" maxlength="30" />
+                            </label>
+                            <label class="field">
+                                <span class="field-label">制作人<i class="req">*</i></span>
+                                <input type="text" name="producer" placeholder="自动取当前用户名…" maxlength="20" />
+                            </label>
+                        </div>
+
+                        <div class="row">
+                            <label class="field grow">
+                                <span class="field-label">当前天气情况<i class="req">*</i></span>
+                                <textarea name="current" rows="2" placeholder="例:目前沈阳机场西南侧有成片对流云团自西南向东北偏北方向移动。"></textarea>
+                            </label>
+                        </div>
+
+                        <div class="row">
+                            <label class="field grow">
+                                <span class="field-label">预警内容<i class="req">*</i></span>
+                                <textarea name="forecast" rows="2" placeholder="例:预计未来 2 小时沈阳机场将出现雷雨,请注意!…"></textarea>
+                            </label>
+                        </div>
+
+                        <div class="wt-error" id="wt-error" hidden></div>
+
+                        <div class="wt-actions" id="wt-actions">
+                            <button type="button" class="btn primary" id="wt-screenshot">一键截图</button>
+                            <button type="button" class="btn" id="wt-export-record">导出历史预警记录</button>
+                            <button type="button" class="btn ghost" id="wt-reset">清空</button>
+                            <!-- 发布序号确认弹窗（紧邻「一键截图」按钮下方弹出） -->
+                            <div class="wt-modal" id="wt-serial-modal" hidden aria-hidden="true" role="dialog" aria-modal="false" aria-labelledby="wt-serial-modal-title">
+                                <div class="wt-modal-dialog" role="document">
+                                    <h2 class="wt-modal-title" id="wt-serial-modal-title">确认发布序号</h2>
+                                    <div class="wt-serial-display" id="wt-serial-display">20260718001</div>
+                                    <div class="wt-serial-controls">
+                                        <button class="wt-serial-btn" id="wt-serial-minus" type="button" aria-label="序号减一">−</button>
+                                        <span class="wt-serial-suffix" id="wt-serial-suffix">今日第 1 份预警</span>
+                                        <button class="wt-serial-btn" id="wt-serial-plus" type="button" aria-label="序号加一">+</button>
+                                    </div>
+                                    <div class="wt-modal-actions">
+                                        <button class="btn ghost wt-btn-sm" id="wt-serial-cancel" type="button">取消</button>
+                                        <button class="btn primary wt-btn-sm" id="wt-serial-confirm" type="button">确认</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 右侧：实时预览（与气象台预警模板视觉对应） -->
+                <div class="card glass">
+                    <div class="card-title">实时预览</div>
+                    <div id="wt-preview" class="wt-preview">
+                        <div class="wt-title-bar">
+                            <img class="wt-title-logo" src="data:image/png;base64,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" alt="logo" />
+                            <div class="wt-title-text">
+                                <span class="wt-airport-name is-placeholder">请填写...</span>机场<span class="wt-level-name">预警</span>
+                            </div>
+                        </div>
+                        <!-- 天气现象 + 信息行：左 35% 现象（垂直居中），右 65% 三行（序号/时间/电话） -->
+                        <div class="wt-row wt-row-info">
+                            <div class="wt-row-left wt-row-phenomenon-cell">
+                                <div class="wt-phenomenon is-placeholder">天气类型</div>
+                            </div>
+                            <div class="wt-row-info-right">
+                                <div class="wt-info-item">发布序号：<span class="wt-serial is-placeholder">—</span></div>
+                                <div class="wt-info-item">发布时间：<span class="wt-publish-time is-placeholder">yyyy年M月d日HH:mm</span>（北京时）</div>
+                                <div class="wt-info-item">气象席电话：<span class="wt-phone">—</span></div>
+                            </div>
+                        </div>
+                        <div class="wt-merge wt-current is-placeholder">当前天气情况</div>
+                        <div class="wt-merge wt-forecast is-placeholder">预警内容</div>
+                        <div class="wt-producer">制作人：<span class="wt-producer-name is-placeholder">—</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史预警机场（按机场分组、扑克牌样式） -->
+            <div class="wt-history" id="wt-history">
+                <div class="wt-history-head">
+                    <h2 class="wt-history-title">历史预警机场</h2>
+                    <span class="wt-history-stat" id="wt-history-stat">共 0 个机场 / 0 条历史预警</span>
+                    <button type="button" class="btn ghost wt-btn-sm" id="wt-history-clear-all" disabled>全部清空</button>
+                </div>
+                <div class="wt-history-list" id="wt-history-list"></div>
+                <div class="wt-history-empty" id="wt-history-empty">
+                    <div class="wt-history-empty-icon">♠</div>
+                    <div class="wt-history-empty-text">暂无历史预警记录</div>
+                    <div class="wt-history-empty-hint">点击「一键截图」后，预警记录会自动保存到此处</div>
+                </div>
+
+                <!-- 全部清空确认弹窗（自定义毛玻璃样式，替换浏览器原生 confirm） -->
+                <div class="wt-confirm-mask" id="wt-confirm-clear-mask" hidden aria-hidden="true"></div>
+                <div class="wt-confirm-modal" id="wt-confirm-clear-modal" hidden role="dialog" aria-modal="true" aria-labelledby="wt-confirm-clear-title">
+                    <div class="wt-confirm-dialog" role="document">
+                        <div class="wt-confirm-icon" aria-hidden="true">🗑</div>
+                        <h3 class="wt-confirm-title" id="wt-confirm-clear-title">清空全部历史预警？</h3>
+                        <p class="wt-confirm-message" id="wt-confirm-clear-message">此操作将删除所有历史预警记录，且不可撤销。</p>
+                        <div class="wt-confirm-actions">
+                            <button type="button" class="btn ghost wt-btn-sm" id="wt-confirm-clear-cancel">取消</button>
+                            <button type="button" class="btn wt-btn-sm wt-btn-danger" id="wt-confirm-clear-ok">确认清空</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 大风/沙尘/结冰天气发布工具 -->
+        <section class="panel hidden" id="panel-wind-dust" data-panel="wind-dust">
+            <div class="panel-header">
+                <h2>大风/沙尘/结冰天气发布工具</h2>
+                <p class="panel-desc">粘贴 TAF 气象报文，自动识别大风 / 沙尘 / 结冰事件，下方实时预览将要导出的 EXCEL 通报。</p>
+            </div>
+
+            <!-- 上：TAF 报文 -->
+            <div class="card glass">
+                <div class="card-title">TAF 报文</div>
+                <textarea id="taf-input" class="taf-input" rows="6" placeholder="例：&#10;TAF ZPPP 120300Z 1206/1312 25015G25KT 3000 SA ..."></textarea>
+                <div class="actions">
+                    <button type="button" class="btn primary" id="taf-parse">解析 TAF</button>
+                    <button type="button" class="btn" id="taf-sample">填入示例</button>
+                    <button type="button" class="btn" id="taf-clear">清空</button>
+                    <button type="button" class="btn ghost" id="taf-export-pdf">导出大风/沙尘/结冰天气通报（PDF）</button>
+                </div>
+                <div class="taf-msg" id="taf-msg" hidden></div>
+            </div>
+
+            <!-- 下：通报预览（与导出 PDF 内容一一对应） -->
+            <div class="card glass">
+                <div class="card-title">
+                    <span class="dot vis"></span>通报预览
+                    <span class="muted" id="xlsx-preview-hint">解析 TAF 后将在此显示 62 机场通报模板</span>
+                    <span class="preview-actions">
+                        <span class="unsaved-badge" id="unsaved-badge" hidden>● 未保存修改</span>
+                        <button type="button" class="btn small" id="xlsx-save-edits" disabled>保存修改</button>
+                        <button type="button" class="btn small ghost" id="xlsx-reset-edits" disabled>还原编辑</button>
+                        <button type="button" class="btn small ghost" id="xlsx-toggle-all" hidden>展开全部</button>
+                    </span>
+                </div>
+                <div class="xlsx-edit-hint" id="xlsx-edit-hint">直接点击单元格即可编辑。修改后点击「保存修改」将覆盖内容持久化到本地，「还原编辑」可恢复 TAF 解析的原始结果。</div>
+                <div class="xlsx-preview-wrap">
+                    <table class="xlsx-preview" id="xlsx-preview">
+                            <!-- 表头由 wind-dust.js 动态生成，避免与 thead 重复 -->
+                            <tbody id="xlsx-preview-body">
+                                <tr class="xlsx-empty">
+                                    <td colspan="5">尚未解析 TAF 报文。请在上方粘贴报文后点击"解析 TAF"，此处将实时展示将要导出的 EXCEL 通报内容。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            <!-- 识别标准说明（筛选阈值） -->
+            <div class="card glass criteria-card">
+                <div class="card-title">
+                    <span class="dot criteria"></span>识别标准说明
+                    <span class="muted">当前筛选阈值（固定）</span>
+                </div>
+                <div class="grid-4 criteria">
+                    <div class="criteria-item" data-kind="wind">
+                        <div class="criteria-head">
+                            <span class="dot wind"></span>
+                            <span class="criteria-title">大风</span>
+                        </div>
+                        <div class="criteria-formula">平均风 ≥ 8 m/s<span class="or">或</span>阵风 ≥ 8 m/s</div>
+                        <div class="criteria-desc">TAF 主组或变化组（TEMPO / BECMG / FM）的风组满足阈值时识别为大风事件。</div>
+                    </div>
+                    <div class="criteria-item" data-kind="dust">
+                        <div class="criteria-head">
+                            <span class="dot dust"></span>
+                            <span class="criteria-title">天气现象</span>
+                        </div>
+                        <div class="criteria-formula">含 SA / SS / DS</div>
+                        <div class="criteria-desc">现象组含沙尘代码 SA（沙）/ SS（沙暴）/ DS（尘暴）时识别为沙尘事件。</div>
+                    </div>
+                    <div class="criteria-item" data-kind="vis">
+                        <div class="criteria-head">
+                            <span class="dot vis"></span>
+                            <span class="criteria-title">能见度</span>
+                        </div>
+                        <div class="criteria-formula">能见度 ≤ 2000 m</div>
+                        <div class="criteria-desc">当同时满足"能见度 ≤ 2000 m"与"含沙尘现象"两项条件时，识别为低能见度沙尘事件。</div>
+                    </div>
+                    <div class="criteria-item" data-kind="ice">
+                        <div class="criteria-head">
+                            <span class="dot ice"></span>
+                            <span class="criteria-title">地面结冰</span>
+                        </div>
+                        <div class="criteria-formula">Tmin &lt; 10 ℃</div>
+                        <div class="criteria-desc">TAF 报文中 Tmin（最低温度）低于 10 ℃ 时识别为满足地面结冰条件。</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 气象报文翻译工具 -->
+        <section class="panel hidden" id="panel-translate" data-panel="translate">
+            <div class="panel-header">
+                <h2>气象报文翻译工具</h2>
+                <p class="panel-desc">粘贴 METAR / SPECI / TAF 报文（支持多条），自动翻译为自然语言中文长句，便于值班员复诵与播报。</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card glass">
+                    <div class="card-title">报文输入</div>
+                    <textarea id="translate-input" class="taf-input" rows="6"
+                        placeholder="例：&#10;METAR ZPPP 142000Z 20003MPS 9999 FEW020 SCT040 19/17 Q1017 NOSIG=&#10;METAR ZUUU 121500Z VRB03MPS 0500 FG VV/// 02/02 Q1020 NOSIG="></textarea>
+                    <div class="actions">
+                        <button type="button" class="btn primary" id="translate-run">翻译</button>
+                        <button type="button" class="btn" id="translate-sample">填入示例</button>
+                        <button type="button" class="btn" id="translate-clear">清空</button>
+                        <button type="button" class="btn ghost" id="translate-copy" disabled
+                            title="请先翻译一条报文">复制结果</button>
+                        <button type="button" class="btn ghost" id="translate-export-word" disabled
+                            title="请先翻译一条报文">导出 Word</button>
+                    </div>
+                    <div class="translate-error" id="translate-error" hidden></div>
+                </div>
+
+                <div class="card glass">
+                    <div class="card-title">中文长句</div>
+                    <pre class="result-text translate-out" id="translate-output">尚未翻译。请在左侧粘贴报文后点击"翻译"。</pre>
+                </div>
+            </div>
+
+            <!-- 解析摘要（独立一行 - 跨满左右宽度） -->
+            <div class="card glass" id="translate-summary-card" hidden>
+                <div class="card-title">解析摘要</div>
+                <ul class="result-list" id="translate-summary">
+                    <li class="empty" id="translate-summary-empty">尚未解析</li>
+                </ul>
+            </div>
+
+            <!-- 最近翻译（独立一行 - 跨满左右宽度，填满下边） -->
+            <div class="card glass translate-recent-card-wrap">
+                <div class="card-title">
+                    <span>最近翻译</span>
+                    <span class="muted" id="translate-recent-count">0</span>
+                    <span class="preview-actions">
+                        <button type="button" class="btn ghost small" id="translate-recent-clear">清空历史</button>
+                    </span>
+                </div>
+                <div class="translate-recent-list" id="translate-recent">
+                    <div class="empty" id="translate-recent-empty">暂无历史记录</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 次日风险制作工具 -->
+        <section class="panel hidden" id="panel-next-risk" data-panel="next-risk">
+            <div class="panel-header">
+                <h2>次日风险制作工具</h2>
+                <p class="panel-desc">录入次日风险条目（多机场），支持导出系统录入 Excel 与 Word 简报。</p>
+            </div>
+
+            <!-- 2 列布局：左=录入+导出，右=列表预览 -->
+            <div class="ndr-panel-grid">
+                <!-- 左列 -->
+                <div class="ndr-col-left">
+                    <!-- Card 1: 风险录入 -->
+                    <div class="card glass">
+                        <div class="card-title" id="ndr-form-title">新增风险</div>
+                        <form id="ndr-form" class="form ndr-form" autocomplete="off">
+                            <div class="row">
+                                <label class="field">
+                                    <span class="field-label">关注等级<i class="req">*</i></span>
+                                    <input type="text" name="level" id="ndr-level"
+                                        placeholder="1=黄色 2=橙色 3=红色…"
+                                        autocomplete="off" maxlength="20" />
+                                </label>
+                                <label class="field">
+                                    <span class="field-label">机场（ICAO）<i class="req">*</i></span>
+                                    <div class="ndr-icao-wrap">
+                                        <input type="text" name="icao" id="ndr-icao"
+                                            maxlength="4" placeholder="例:ZPJH…"
+                                            style="text-transform: uppercase; font-family: ui-monospace, monospace;" />
+                                        <ul class="ndr-suggest" id="ndr-suggest" hidden></ul>
+                                    </div>
+                                    <span class="ndr-hint" id="ndr-icao-hint" hidden></span>
+                                </label>
+                            </div>
+                            <div class="row">
+                                <div class="field grow">
+                                    <span class="field-label">天气类型<i class="req">*</i>（可多选）</span>
+                                    <div class="ndr-weather-chips" id="ndr-weather-chips">
+                                        <!-- 15 个 chip 由 JS 动态生成 -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <label class="field">
+                                    <span class="field-label">影响开始时间<i class="req">*</i></span>
+                                    <div class="ndr-time-row">
+                                        <input type="text" name="startTime" id="ndr-start-time"
+                                            placeholder="例:0600 或 2026/7/20  14:00:00" />
+                                        <div class="ndr-day-group sgc" id="ndr-start-day-group" data-sgc-init="1">
+                                            <div class="sgc-track"></div>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item" data-offset="0" data-sgc-value="0">当日</button>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item is-active" data-offset="1" data-sgc-value="1">次日</button>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item" data-offset="2" data-sgc-value="2">后日</button>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="field">
+                                    <span class="field-label">影响结束时间<i class="req">*</i></span>
+                                    <div class="ndr-time-row">
+                                        <input type="text" name="endTime" id="ndr-end-time"
+                                            placeholder="例:1800 或 2026/7/20  18:00:00…" />
+                                        <div class="ndr-day-group sgc" id="ndr-end-day-group" data-sgc-init="1">
+                                            <div class="sgc-track"></div>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item" data-offset="0" data-sgc-value="0">当日</button>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item is-active" data-offset="1" data-sgc-value="1">次日</button>
+                                            <button type="button" class="btn ghost small ndr-day-btn sgc-item" data-offset="2" data-sgc-value="2">后日</button>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="row">
+                                <label class="field grow">
+                                    <span class="field-label">气象预报<i class="req">*</i></span>
+                                    <textarea name="forecast" id="ndr-forecast" rows="3"
+                                        placeholder="例:受低涡切变系统影响，预计次日 06:00-18:00 有中到大阵雨伴雷暴…"></textarea>
+                                </label>
+                            </div>
+                            <div class="ndr-error" id="ndr-error" hidden></div>
+                            <div class="actions">
+                                <button type="button" class="btn primary" id="ndr-save" disabled>保存</button>
+                                <button type="button" class="btn ghost" id="ndr-reset">重置</button>
+                                <button type="button" class="btn ghost" id="ndr-cancel-edit" hidden>取消编辑</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Card 3: 导出区 -->
+                    <div class="card glass">
+                        <div class="card-title">导出</div>
+                        <p class="muted small">列表为空时按钮不可用。</p>
+                        <div class="actions">
+                            <button type="button" class="btn primary" id="ndr-screenshot" disabled
+                                title="请先保存至少 1 条风险条目">气象简报机场预警截图</button>
+                            <button type="button" class="btn primary" id="ndr-export-excel" disabled
+                                title="请先保存至少 1 条风险条目">导出次日风险系统录入 Excel</button>
+                            <button type="button" class="btn primary" id="ndr-export-aoc" disabled
+                                title="请先保存至少 1 条风险条目">导出AOC次日风险共享表格</button>
+                        </div>
+
+                        <!-- 航班文件上传：仅 AOC 导出时使用，附表2 D 列按机场+时段匹配影响航班 -->
+                        <div class="ndr-upload">
+                            <div class="ndr-upload-head">
+                                <span class="ndr-upload-label">航班动态（影响航班匹配）</span>
+                                <span class="ndr-upload-hint muted small">请下载公司运控系统-航班动态.xlsx并上传，自动识别影响航班</span>
+                            </div>
+                            <div class="ndr-upload-row">
+                                <label class="btn small ndr-upload-btn" for="ndr-flights-file">
+                                    <span>选择文件</span>
+                                    <input type="file" id="ndr-flights-file" accept=".xls,.xlsx" hidden />
+                                </label>
+                                <span class="ndr-upload-status muted small" id="ndr-flights-status">尚未上传航班文件</span>
+                                <span class="ndr-upload-filename muted small" id="ndr-flights-filename" hidden></span>
+                                <button type="button" class="btn ghost small ndr-upload-clear" id="ndr-flights-clear" hidden>清除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右列：已录入风险列表（扑克牌样式） -->
+                <div class="ndr-col-right">
+                    <div class="card glass ndr-list-card">
+                        <div class="card-title">
+                            <span>已录入风险</span>
+                            <span class="muted" id="ndr-count">0</span>
+                            <div class="ndr-archive-tabs" id="ndr-archive-tabs">
+                                <!-- 存档 Tab 由 JS 动态生成 -->
+                            </div>
+                            <span class="preview-actions">
+                                <button type="button" class="btn ghost small" id="ndr-clear-all" disabled
+                                    title="暂无可清空的风险条目">全部清空</button>
+                            </span>
+                        </div>
+                        <div class="ndr-deck" id="ndr-list"></div>
+                        <div class="empty" id="ndr-empty">暂无录入的风险</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 气象简报机场预警截图 预览弹窗（毛玻璃 / 弹性缓动） -->
+    <div class="screenshot-modal" id="screenshot-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="screenshot-modal-title">
+        <div class="screenshot-modal__backdrop" data-modal-close></div>
+        <div class="screenshot-modal__panel" role="document">
+            <button class="screenshot-modal__close" id="screenshot-modal-close" type="button" aria-label="关闭">×</button>
+            <h2 class="screenshot-modal__title" id="screenshot-modal-title">气象简报机场预警截图预览</h2>
+            <div class="screenshot-modal__toast" id="screenshot-modal-toast" hidden></div>
+            <div class="screenshot-modal__img-wrap">
+                <img class="screenshot-modal__img" id="screenshot-modal-img" alt="截图预览" />
+            </div>
+            <div class="screenshot-modal__actions">
+                <button class="btn ghost" id="screenshot-modal-download" type="button">下载 PNG</button>
+                <button class="btn primary" id="screenshot-modal-confirm" type="button">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <span class="muted small">本地版 · 离线可用</span>
+            <div class="footer-actions">
+                <button type="button" class="btn ghost small" id="view-log">查看日志</button>
+                <button type="button" class="btn ghost small" id="download-log">下载日志</button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 用户名弹窗：首次进入自动弹出，用户可随时通过右上角胶囊再次打开 -->
+    <div class="user-modal" id="user-modal" hidden role="dialog" aria-modal="true"
+         aria-labelledby="user-modal-title">
+        <div class="user-modal-card glass" role="document">
+            <div class="user-modal-header">
+                <div class="user-modal-title" id="user-modal-title">请输入您的用户名</div>
+                <button class="user-modal-close" id="user-close" type="button"
+                    aria-label="关闭">×</button>
+            </div>
+            <div class="user-modal-body">
+                <p class="user-modal-desc">
+                    此用户名仅用于气象产品发布时的署名（如「签发：XXX」），无需验证。可随时通过页面右上角的胶囊重新设置。
+                </p>
+                <input type="text" id="user-input" class="user-input" maxlength="20"
+                    placeholder="例:张三 / Zhang San…" autocomplete="off" spellcheck="false" />
+                <div class="user-modal-error" id="user-error" hidden></div>
+            </div>
+            <div class="user-modal-footer">
+                <button type="button" class="btn ghost" id="user-cancel">取消</button>
+                <button type="button" class="btn primary" id="user-save">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志面板 -->
+    <div class="log-overlay" id="log-overlay" hidden>
+        <div class="log-panel glass">
+            <div class="log-header">
+                <div class="card-title">运行日志 <span class="muted" id="log-count">0</span></div>
+                <button type="button" class="btn ghost small" id="log-close">关闭</button>
+            </div>
+            <pre class="log-body" id="log-body"></pre>
+        </div>
+    </div>
+
+    <!-- 通用确认弹窗（毛玻璃风格，替代浏览器原生 confirm）
+         使用：showConfirm({title, message, confirmText, cancelText, danger}) -> Promise<boolean> -->
+    <div class="confirm-modal" id="confirm-modal" hidden role="dialog" aria-modal="true"
+         aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+        <div class="confirm-modal-card glass" role="document">
+            <div class="confirm-modal-header">
+                <div class="confirm-modal-title" id="confirm-modal-title">确认操作</div>
+            </div>
+            <div class="confirm-modal-body">
+                <p class="confirm-modal-message" id="confirm-modal-message"></p>
+            </div>
+            <div class="confirm-modal-footer">
+                <button type="button" class="btn ghost" id="confirm-modal-cancel">取消</button>
+                <button type="button" class="btn primary" id="confirm-modal-ok">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模块脚本：注意顺序，依赖关系 -->
+    <!-- ===== 其他工具（通用基础模块） ===== -->
+    <script defer src="assets/js/common/logger.js"></script>
+    <script defer src="assets/js/common/storage.js"></script>
+    <script defer src="assets/js/common/exporter.js"></script>
+    <script defer src="assets/js/common/user-identity.js"></script>
+    <script defer src="assets/js/common/topbar-clock.js?v=20260810"></script>
+    <script defer src="assets/js/common/mascot.js?v=20260713"></script>
+    <!-- 服务端对接本地配置（含密钥，已被 .gitignore 忽略；文件缺失时上报功能自动降级，不影响其他功能） -->
+    <script defer src="assets/js/common/server-config.local.js"></script>
+
+    <!-- ===== 大风/沙尘/结冰天气发布工具 ===== -->
+    <script defer src="assets/js/wind-dust-ice/parsing-rules.js"></script>
+    <script defer src="assets/js/wind-dust-ice/taf-parser.js?v=20260725l"></script>
+    <script defer src="assets/js/wind-dust-ice/airport-map.js?v=20260809"></script>
+    <script defer src="assets/js/wind-dust-ice/airports.js"></script>
+    <script defer src="assets/js/wind-dust-ice/exporter-xlsx.js"></script>
+    <script defer src="assets/js/wind-dust-ice/wind-dust.js"></script>
+
+    <!-- ===== 气象报文翻译工具 ===== -->
+    <script defer src="assets/js/weather-translate/translator.js?v=20260725l"></script>
+
+    <!-- ===== 第三方依赖 ===== -->
+    <script defer src="assets/vendor/html2canvas.min.js"></script>
+    <script defer src="assets/vendor/jspdf.umd.min.js"></script>
+    <script defer src="assets/vendor/xlsx.bundle.js"></script>
+
+    <!-- ===== 预警发布模块 ===== -->
+    <script defer src="assets/js/warning-publish/warning-history.js"></script>
+    <script defer src="assets/js/warning-publish/warning-record-exporter.js"></script>
+    <script defer src="assets/js/warning-publish/warning-report-pusher.js?v=20260916"></script>
+    <script defer src="assets/js/warning-publish/warning-template.js"></script>
+
+    <!-- ===== 通用组件（分段控件等） ===== -->
+    <script defer src="assets/components/segmented-control.js?v=20260819"></script>
+
+    <!-- ===== 次日风险制作工具模块 ===== -->
+    <script defer src="assets/js/next-day-risk/next-day-risk.js?v=20260908a"></script>
+    <script defer src="assets/js/next-day-risk/next-day-risk-excel.js"></script>
+    <script defer src="assets/js/next-day-risk/airport-warning-screenshot.js?v=20260819b"></script>
+    <script defer src="assets/js/next-day-risk/aoc-risk-share-export.js"></script>
+    <script defer src="assets/js/next-day-risk/aoc-template-embed.js"></script>
+
+    <!-- ===== 应用主入口（最后加载） ===== -->
+    <script defer src="assets/js/common/app.js"></script>
+</body>
+</html>

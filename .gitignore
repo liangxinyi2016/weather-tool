@@ -1,0 +1,25 @@
+# ===== 依赖与构建产物 =====
+node_modules/
+*.log
+
+# ===== 操作系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 编辑器/IDE 配置 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Trae 工作区文件（本地设计稿，无需部署） =====
+.trae/
+
+# ===== 本地缓存与临时文件 =====
+.cache/
+tmp/
+*.local
+# 本地覆盖配置（含服务端地址与专用密钥，禁止提交）
+*.local.js

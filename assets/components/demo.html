@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SegmentedControl · Apple 分段控件演示</title>
+    <link rel="stylesheet" href="segmented-control.css" />
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 48px 32px;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+            color: #1c1c1e;
+            background:
+                radial-gradient(1200px 600px at 20% -10%, rgba(126, 200, 255, 0.35), transparent 60%),
+                radial-gradient(900px 500px at 90% 10%, rgba(58, 123, 213, 0.20), transparent 55%),
+                linear-gradient(180deg, #f5f7fb 0%, #e8edf5 100%);
+        }
+        h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: 0.3px; }
+        p.meta { margin: 0 0 32px; color: rgba(60, 66, 82, 0.72); }
+        .panel {
+            background: rgba(255, 255, 255, 0.55);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 18px;
+            box-shadow: 0 8px 30px rgba(28, 40, 64, 0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+            max-width: 640px;
+        }
+        .panel h2 { font-size: 15px; margin: 0 0 16px; color: #3a7bd5; }
+        .row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+        .row:last-child { margin-bottom: 0; }
+        .label { width: 120px; color: rgba(60, 66, 82, 0.72); font-size: 13px; }
+        .log {
+            margin-top: 14px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.04);
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: rgba(60, 66, 82, 0.85);
+        }
+        .btn {
+            appearance: none;
+            border: 1px solid rgba(120, 128, 142, 0.25);
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #1c1c1e;
+            transition: transform 160ms cubic-bezier(0.32, 1.4, 0.5, 1), background 160ms ease;
+        }
+        .btn:hover { background: rgba(255, 255, 255, 0.85); transform: translateY(-1px); }
+        .btn:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <h1>SegmentedControl</h1>
+    <p class="meta">Apple 风格分段单选控件 · 毛玻璃 / 弹性缓动 / 微交互</p>
+
+    <!-- 1) 默认形态 + 自动初始化 (#ctrl-day) -->
+    <section class="panel">
+        <h2>默认形态（自动初始化 data-sgc）</h2>
+        <div class="row">
+            <span class="label">日期类型</span>
+            <div class="sgc" id="ctrl-day" data-sgc data-sgc-init="next" data-sgc-name="dateRole">
+                <button type="button" class="sgc-item" data-sgc-value="day">当日</button>
+                <button type="button" class="sgc-item" data-sgc-value="next">次日</button>
+                <button type="button" class="sgc-item" data-sgc-value="after">后日</button>
+            </div>
+        </div>
+        <div class="log" id="log-day">等待选择…</div>
+    </section>
+
+    <!-- 2) 手动创建 + onChange/API -->
+    <section class="panel">
+        <h2>手动创建 + API（setValue / getValue / onChange）</h2>
+        <div class="row">
+            <span class="label">天气等级</span>
+            <div class="sgc" id="ctrl-weather">
+                <button type="button" class="sgc-item" data-sgc-value="yellow">黄色</button>
+                <button type="button" class="sgc-item" data-sgc-value="orange">橙色</button>
+                <button type="button" class="sgc-item" data-sgc-value="red">红色</button>
+            </div>
+        </div>
+        <div class="row">
+            <span class="label"></span>
+            <button class="btn" id="btn-red">选中红色</button>
+            <button class="btn" id="btn-get">获取当前值</button>
+        </div>
+        <div class="log" id="log-weather">等待选择…</div>
+    </section>
+
+    <!-- 3) 尺寸 + 强调色 + 禁用态 -->
+    <section class="panel">
+        <h2>变体：尺寸 / 强调色 / 禁用</h2>
+        <div class="row">
+            <span class="label">小号</span>
+            <div class="sgc sgc-sm" data-sgc data-sgc-init="a">
+                <button type="button" class="sgc-item" data-sgc-value="a">USB</button>
+                <button type="button" class="sgc-item" data-sgc-value="b">USBC</button>
+                <button type="button" class="sgc-item" data-sgc-value="c">iPhone</button>
+            </div>
+        </div>
+        <div class="row">
+            <span class="label">大号·强调色</span>
+            <div class="sgc sgc-lg sgc-primary" data-sgc data-sgc-init="tab2">
+                <button type="button" class="sgc-item" data-sgc-value="tab1">天气</button>
+                <button type="button" class="sgc-item" data-sgc-value="tab2">风</button>
+                <button type="button" class="sgc-item" data-sgc-value="tab3">雷</button>
+            </div>
+        </div>
+        <div class="row">
+            <span class="label">禁用态</span>
+            <div class="sgc sgc-disabled" data-sgc data-sgc-init="x">
+                <button type="button" class="sgc-item" data-sgc-value="x">只读 A</button>
+                <button type="button" class="sgc-item" data-sgc-value="y">只读 B</button>
+            </div>
+        </div>
+    </section>
+
+    <script src="segmented-control.js"></script>
+    <script>
+        (function () {
+            // 示例 2：手动创建，绑定 onChange 并暴露到窗口
+            var weather = new SegmentedControl(document.getElementById('ctrl-weather'), {
+                name: 'weatherLevel',
+                onChange: function (value, index) {
+                    document.getElementById('log-weather').textContent = 'onChange → value=' + value + '，index=' + index;
+                }
+            });
+
+            document.getElementById('btn-red').addEventListener('click', function () {
+                weather.setValue('red');
+                document.getElementById('log-weather').textContent = 'setValue("red") → 当前值：' + weather.getValue();
+            });
+            document.getElementById('btn-get').addEventListener('click', function () {
+                document.getElementById('log-weather').textContent = 'getValue() = ' + weather.getValue() +
+                    '，getIndex() = ' + weather.getIndex();
+            });
+
+            var day = SegmentedControl.get('ctrl-day');
+            document.getElementById('log-day').textContent = 'auto 初始化完成，初始值：' + (day ? day.getValue() : 'null');
+        })();
+    </script>
+</body>
+</html>

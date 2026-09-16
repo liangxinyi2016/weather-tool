@@ -1,0 +1,5242 @@
+/* ============================================================
+ * 气象业务辅助工具 - 视觉风格（Apple Design Language）
+ * 设计要素：毛玻璃、大圆角、多层半透明、弹性缓动动画、微交互
+ * ============================================================ */
+
+:root {
+    /* 统一缓动变量（Apple 弹性 / 标准 ease 形式） */
+    --ease-apple: cubic-bezier(0.32, 1.4, 0.5, 1);
+    --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    /* 主题色（与 meta theme-color 一致） */
+    --bg-base: #dceefb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+    color: #1d1d1f;
+    background: var(--bg-base, #dceefb);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: light;
+}
+
+/* 屏幕阅读器专用：视觉隐藏但保留可读性 */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* 多层半透明背景渐变（浅蓝气象主题） */
+.bg-layer {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.bg-layer-1 {
+    background:
+        radial-gradient(ellipse at 20% 10%, rgba(126, 200, 255, 0.55), transparent 55%),
+        radial-gradient(ellipse at 80% 0%, rgba(166, 210, 255, 0.50), transparent 60%),
+        linear-gradient(180deg, #e3f2fc 0%, #cfe6f5 55%, #b9d8ee 100%);
+    filter: saturate(1.10);
+}
+
+.bg-layer-2 {
+    background:
+        radial-gradient(ellipse at 90% 80%, rgba(255, 220, 180, 0.28), transparent 60%),
+        radial-gradient(ellipse at 5% 90%, rgba(190, 225, 245, 0.45), transparent 55%);
+    mix-blend-mode: screen;
+}
+
+.bg-layer-3 {
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.55), transparent 50%);
+    mix-blend-mode: overlay;
+}
+
+/* 毛玻璃 mixin
+ * 性能说明：blur(28px) 在低端机会显著卡顿，降至 18px；
+ *         顶部 topbar 可保留 20px 以提供与卡片层级的视觉差异
+ */
+.glass {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+        0 10px 30px rgba(28, 40, 64, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 顶部毛玻璃标题栏
+ * 固定在视口顶部，滚动时始终保持可见。
+ * 宽度 = 100% - 左右各 14px 外边距，配合大圆角呈现"悬浮卡片"质感。
+ * 入场动画：弹性下滑 + 毛玻璃渐显
+ * 滚动态：增强阴影 + 略微下沉
+ */
+.topbar {
+    position: fixed;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    z-index: 100;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 0 8px 24px rgba(28, 40, 64, 0.10);
+    overflow: hidden;
+    /* 入场动画 */
+    animation: topbarIn 500ms var(--ease-apple) both;
+    /* 滚动过渡：仅 transform 与 background-color，避免重绘 */
+    transition: transform 350ms var(--ease-apple),
+                background-color 350ms var(--ease-apple);
+    transform-origin: top center;
+}
+
+/* 全局 :focus-visible 视觉规范
+ * - 键盘聚焦：蓝色 outline + 偏移 2px + 圆角跟随元素
+ * - 触屏聚焦（hover: none）：禁用 outline，避免触屏点击闪烁
+ * - 兼容 prefers-reduced-motion：自动失效（见文末 reduced-motion 块）
+ */
+:focus-visible {
+    outline: 2px solid #3a7bd5;
+    outline-offset: 2px;
+    border-radius: 6px;
+    transition: outline-color 120ms var(--ease-out);
+}
+@media (hover: none) {
+    :focus { outline: none; }
+}
+
+/* 顶部导航栏入场动画
+ * - 从上方 -12px 滑入
+ * - 弹性缓动 cubic-bezier(0.32, 1.4, 0.5, 1)
+ * - 毛玻璃效果渐显（backdrop-filter + 透明度）
+ */
+@keyframes topbarIn {
+    from {
+        opacity: 0;
+        transform: translateY(-18px) scale(0.98);
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
+    }
+    50% {
+        opacity: 0.85;
+        transform: translateY(2px) scale(1.01);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+    }
+}
+
+/* 顶部导航栏滚动态：增强悬浮感 */
+.topbar.is-scrolled {
+    box-shadow: 
+        0 12px 32px rgba(28, 40, 64, 0.15),
+        0 4px 12px rgba(28, 40, 64, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transform: translateY(2px);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.topbar-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+}
+
+/* 第一行：品牌 + 标签栏 + 用户胶囊 */
+.topbar-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #7ec8ff, #3a7bd5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 6px 16px rgba(58, 123, 213, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: 
+        transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        box-shadow 220ms ease,
+        filter 220ms ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    cursor: pointer;
+}
+
+/* 品牌图标 hover 状态 */
+.brand-mark:hover {
+    transform: rotate(-8deg) scale(1.08);
+    box-shadow:
+        0 12px 24px rgba(58, 123, 213, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    filter: brightness(1.05);
+}
+
+/* 品牌图标点击反馈 */
+.brand-mark:active {
+    transform: rotate(-2deg) scale(0.94);
+    box-shadow:
+        0 3px 8px rgba(58, 123, 213, 0.35),
+        inset 0 2px 4px rgba(0, 0, 0, 0.15);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                box-shadow 80ms ease;
+}
+
+/* 品牌图标光环效果 */
+.brand-mark::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    background: radial-gradient(circle, rgba(126, 200, 255, 0.4) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    z-index: -1;
+}
+
+.brand-mark:hover::before {
+    opacity: 1;
+    animation: brandGlow 2s ease-in-out infinite;
+}
+
+@keyframes brandGlow {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+.brand-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.2px;
+}
+
+.brand-subtitle {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+/* ============================================================
+ * 顶部标签栏（iOS Segmented Control 风格 + 滑动指示器）
+ * ------------------------------------------------------------
+ * - 容器：毛玻璃 + 12px 圆角
+ * - 滑动指示器：蓝色胶囊，弹性过渡
+ * - tab 默认态：透明背景，按下时轻微下压
+ * - active 态：白色胶囊 + 蓝色文字，模拟"凸起"指示器
+ * ============================================================ */
+.tabs {
+    display: flex;
+    gap: 3px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+        0 2px 8px rgba(28, 40, 64, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    position: relative;
+    isolation: isolate;
+}
+
+/* 滑动指示器：白色胶囊背景，跟随 active tab 平滑滑动 */
+.tabs-indicator {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    height: calc(100% - 8px);
+    background: #3a7bd5;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0) 60%),
+        linear-gradient(135deg, #3a7bd5 0%, #5b8def 100%);
+    border-radius: 9px;
+    box-shadow:
+        0 4px 10px rgba(58, 123, 213, 0.32),
+        0 1px 3px rgba(58, 123, 213, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: 
+        transform 420ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        width 420ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        box-shadow 200ms ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.tabs-indicator:active {
+    box-shadow:
+        0 1px 4px rgba(58, 123, 213, 0.30),
+        inset 0 1px 2px rgba(0, 0, 0, 0.10);
+    transform-origin: center;
+}
+
+.tab {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #4a5568;
+    padding: 7px 16px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 550;
+    cursor: pointer;
+    /* 弹性过渡：进入态更舒展，按下态更敏捷 */
+    transition: 
+        transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        color 200ms ease,
+        box-shadow 220ms ease,
+        opacity 200ms ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+    /* 防止文字选中 */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.tab:hover:not(.active) {
+    color: #1d1d1f;
+    background-color: rgba(255, 255, 255, 0.4);
+}
+
+.tab:hover:not(.active)::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(91, 141, 239, 0.6), transparent);
+    border-radius: 1px;
+    animation: tabHoverUnderline 300ms ease forwards;
+}
+
+@keyframes tabHoverUnderline {
+    to { width: 60%; }
+}
+
+.tab:active:not(.active) {
+    transform: translateY(1px) scale(0.96);
+    background-color: rgba(91, 141, 239, 0.08);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease;
+}
+
+.tab.active {
+    color: #fff;
+    /* active 态不再需要背景，由 .tabs-indicator 承担 */
+    background: transparent;
+    box-shadow: none;
+    /* 激活态文字加粗 + 字间距微调 */
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    /* 激活脉冲动画 */
+    animation: tabActivePulse 500ms cubic-bezier(0.32, 1.4, 0.5, 1) both;
+}
+
+/* tab 激活时的微脉冲动画 */
+@keyframes tabActivePulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.04); }
+    70% { transform: scale(0.98); }
+    100% { transform: scale(1); }
+}
+
+.tab.active:active {
+    transform: translateY(1px) scale(0.97);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1);
+}
+
+/* 内容区
+ * padding-top = topbar 高度 + 上下间距，避免 fixed 顶栏遮挡内容
+ */
+.content {
+    flex: 1;
+    padding: 96px 14px 24px 14px;
+}
+
+.panel {
+    /* Apple-style panel 入场：弹性缓动 + 轻量缩放 + 向上淡入 */
+    animation: panelIn 380ms cubic-bezier(0.32, 1.4, 0.5, 1) both;
+}
+
+.panel.hidden {
+    display: none;
+}
+
+@keyframes panelIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+        filter: blur(2px);
+    }
+    60% {
+        opacity: 1;
+        filter: blur(0);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
+}
+
+/* ============================================================
+ * 面板标题区（panel-header）
+ * ------------------------------------------------------------
+ * - Apple 风格：毛玻璃背景 + 顶部细渐变高光线 + 大圆角
+ * - 弹性 spring 入场（与卡片同节奏）
+ * - 天气动画已迁移至 topbar，本组件只保留文字区
+ * ============================================================ */
+.panel-header {
+    margin: 4px 6px 18px 6px;
+    padding: 16px 22px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.70) 0%, rgba(244, 248, 254, 0.45) 100%);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 20px;
+    box-shadow:
+        0 6px 18px rgba(28, 40, 64, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    position: relative;
+    overflow: hidden;
+    animation: panel-header-in 460ms cubic-bezier(0.32, 1.4, 0.5, 1) both;
+}
+
+/* 顶部细渐变高光线（金属高光感） */
+.panel-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(91, 141, 239, 0.45) 25%,
+        rgba(126, 200, 255, 0.7) 50%,
+        rgba(91, 141, 239, 0.45) 75%,
+        transparent 100%);
+    pointer-events: none;
+}
+
+@keyframes panel-header-in {
+    0%   { opacity: 0; transform: translateY(-8px) scale(0.985); filter: blur(2px); }
+    60%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.panel-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(135deg, #1d1d1f 0%, #2e6bc4 60%, #5b8def 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 0.3px;
+    line-height: 1.25;
+}
+
+.panel-desc {
+    margin: 6px 0 0 0;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 70ch;
+}
+
+/* ============================================================
+ * 顶栏天气动画组（topbar-weather）
+ * ------------------------------------------------------------
+ * - 5 种天气（晴/风/雨/雷/雹）并排显示，全部同时运行
+ * - 位于顶栏第一行，在「气象业务辅助工具」品牌与右侧 tab 之间
+ * - flex: 1 + space-evenly 占用中间剩余空间，5 个图标平均分布
+ * - 不再使用第二行的装饰（border-top / 背景渐变 / 上下内边距）
+ * ============================================================ */
+.topbar-weather {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 8px;
+    padding: 0 12px;
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tw-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    flex: 0 0 auto;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tw-icon {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.85), rgba(230, 240, 252, 0.40) 75%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.7),
+        0 2px 6px rgba(28, 40, 64, 0.10),
+        0 1px 2px rgba(28, 40, 64, 0.04);
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                box-shadow 220ms ease;
+}
+
+.tw-item:hover .tw-icon {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.8),
+        0 6px 14px rgba(28, 40, 64, 0.16),
+        0 1px 2px rgba(28, 40, 64, 0.05);
+}
+
+.tw-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: 0.3px;
+    line-height: 1;
+}
+
+/* ============================================================
+ * 晴天（Sun）动画
+ * ------------------------------------------------------------
+ * - sun-core：径向渐变球体，2.4s 缩放呼吸
+ * - sun-rays：8 道光线，10s 线性旋转
+ * - sun-glow：外层柔光晕，3s 透明度脉动
+ * - 优化：启用硬件加速 + will-change
+ * ============================================================ */
+.sun-core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #FFF6B0 0%, #FFD93D 45%, #FF9F1C 100%);
+    box-shadow:
+        0 0 8px rgba(255, 217, 61, 0.6),
+        0 0 3px rgba(255, 159, 28, 0.4) inset;
+    transform: translate(-50%, -50%);
+    animation: sun-pulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    z-index: 2;
+    will-change: transform;
+    -webkit-transform: translate3d(-50%, -50%, 0);
+    transform: translate3d(-50%, -50%, 0);
+}
+
+.sun-rays {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+    background: conic-gradient(from 0deg,
+        #FFB627 0deg, transparent 8deg,
+        transparent 36deg, #FFB627 45deg, transparent 53deg,
+        transparent 81deg, #FFB627 90deg, transparent 98deg,
+        transparent 126deg, #FFB627 135deg, transparent 143deg,
+        transparent 171deg, #FFB627 180deg, transparent 188deg,
+        transparent 216deg, #FFB627 225deg, transparent 233deg,
+        transparent 261deg, #FFB627 270deg, transparent 278deg,
+        transparent 306deg, #FFB627 315deg, transparent 323deg,
+        transparent 351deg, #FFB627 360deg);
+    -webkit-mask: radial-gradient(circle, transparent 9px, #000 10px, #000 15px, transparent 16px);
+    mask: radial-gradient(circle, transparent 9px, #000 10px, #000 15px, transparent 16px);
+    animation: sun-rotate 10s linear infinite;
+    z-index: 1;
+    will-change: transform;
+    -webkit-transform: translate3d(-50%, -50%, 0);
+    transform: translate3d(-50%, -50%, 0);
+}
+
+.sun-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 217, 61, 0.45) 0%, rgba(255, 217, 61, 0) 65%);
+    transform: translate(-50%, -50%);
+    animation: sun-glow-pulse 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    z-index: 0;
+    will-change: opacity, transform;
+    -webkit-transform: translate3d(-50%, -50%, 0);
+    transform: translate3d(-50%, -50%, 0);
+}
+
+@keyframes sun-pulse {
+    0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+    50%      { transform: translate3d(-50%, -50%, 0) scale(1.10); }
+}
+
+@keyframes sun-rotate {
+    to { transform: translate3d(-50%, -50%, 0) rotate(360deg); }
+}
+
+@keyframes sun-glow-pulse {
+    0%, 100% { opacity: 0.55; transform: translate3d(-50%, -50%, 0) scale(1); }
+    50%      { opacity: 0.95; transform: translate3d(-50%, -50%, 0) scale(1.18); }
+}
+
+/* ============================================================
+ * 大风（Wind）动画
+ * ------------------------------------------------------------
+ * - 3 条曲线风线，从左侧滑向右侧，依次错峰
+ * - 优化：启用硬件加速 + 更平滑的缓动
+ * ============================================================ */
+.wind-line {
+    position: absolute;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(91, 141, 239, 0.95) 50%, transparent 100%);
+    box-shadow: 0 1px 2px rgba(91, 141, 239, 0.15);
+    animation: wind-blow 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform, opacity;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+}
+
+.wind-line.wl1 {
+    top: 32%;
+    left: 8%;
+    width: 60%;
+    animation-delay: 0s;
+}
+
+.wind-line.wl2 {
+    top: 50%;
+    left: 12%;
+    width: 70%;
+    animation-delay: 0.4s;
+    height: 3.5px;
+    background: linear-gradient(90deg, transparent 0%, rgba(126, 200, 255, 0.95) 50%, transparent 100%);
+}
+
+.wind-line.wl3 {
+    top: 68%;
+    left: 5%;
+    width: 55%;
+    animation-delay: 0.8s;
+}
+
+@keyframes wind-blow {
+    0%   { transform: translate3d(-15px, 0, 0); opacity: 0; }
+    15%  { opacity: 0.6; }
+    25%  { opacity: 1; }
+    75%  { opacity: 1; }
+    85%  { opacity: 0.6; }
+    100% { transform: translate3d(15px, 0, 0); opacity: 0; }
+}
+
+/* ============================================================
+ * 降雨（Rain）动画
+ * ------------------------------------------------------------
+ * - rain-cloud：顶部灰色云朵（3 段 box-shadow 拼成）
+ * - 3 滴雨滴自上而下持续坠落，错峰下落
+ * - 优化：启用硬件加速 + 更平滑的缓动
+ * ============================================================ */
+.rain-cloud {
+    position: absolute;
+    top: 16%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 12px;
+    background: linear-gradient(180deg, #E8EEF5 0%, #C0CDD9 100%);
+    border-radius: 12px;
+    box-shadow:
+        -10px 3px 0 -2px #E8EEF5,
+        10px 3px 0 -2px #E8EEF5,
+        0 3px 5px rgba(91, 141, 239, 0.15);
+    z-index: 2;
+}
+
+.rain-drop {
+    position: absolute;
+    top: 38%;
+    width: 2px;
+    height: 7px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, transparent 0%, #5b8def 70%, #2563eb 100%);
+    box-shadow: 0 0 2px rgba(91, 141, 239, 0.3);
+    animation: rain-fall 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    z-index: 1;
+    will-change: transform, opacity;
+}
+
+.rain-drop.rd1 { left: 28%; animation-delay: 0s; }
+.rain-drop.rd2 { left: 46%; animation-delay: 0.3s; }
+.rain-drop.rd3 { left: 64%; animation-delay: 0.6s; }
+
+@keyframes rain-fall {
+    0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+    10%  { opacity: 0.8; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    90%  { opacity: 0.8; }
+    100% { transform: translate3d(0, 18px, 0); opacity: 0; }
+}
+
+/* ============================================================
+ * 雷电（Thunder）动画
+ * ------------------------------------------------------------
+ * - thunder-cloud：深色云朵
+ * - thunder-bolt：黄色锯齿闪电，clip-path 切割
+ * - thunder-flash：屏幕闪烁白闪，0.8s 不规则闪动
+ * ============================================================ */
+.thunder-cloud {
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 14px;
+    background: linear-gradient(180deg, #6b7280 0%, #374151 100%);
+    border-radius: 14px;
+    box-shadow:
+        -11px 4px 0 -2px #6b7280,
+        11px 4px 0 -2px #6b7280,
+        0 4px 8px rgba(28, 40, 64, 0.25);
+    z-index: 2;
+}
+
+.thunder-bolt {
+    position: absolute;
+    top: 36%;
+    left: 50%;
+    width: 10px;
+    height: 20px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #FCD34D 0%, #F59E0B 100%);
+    clip-path: polygon(45% 0%, 100% 0%, 60% 38%, 92% 38%, 0 100%, 38% 60%, 8% 60%);
+    filter: drop-shadow(0 0 3px rgba(252, 211, 77, 0.85))
+            drop-shadow(0 0 6px rgba(245, 158, 11, 0.4));
+    animation: thunder-flash 0.7s steps(1) infinite;
+    z-index: 1;
+}
+
+.thunder-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(252, 211, 77, 0.5) 0%, transparent 60%);
+    border-radius: 50%;
+    animation: thunder-screen 1.4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes thunder-flash {
+    0%, 25%, 55%, 75%, 100% { opacity: 0.3; }
+    15%, 45%, 65%           { opacity: 1; }
+    35%                     { opacity: 0.6; }
+}
+
+@keyframes thunder-screen {
+    0%, 100% { opacity: 0; }
+    20%      { opacity: 0.6; }
+    21%      { opacity: 0; }
+    50%      { opacity: 0.45; }
+    51%      { opacity: 0; }
+}
+
+/* ============================================================
+ * 冰雹（Hail）动画
+ * ------------------------------------------------------------
+ * - hail-cloud：冷灰色云朵
+ * - 4 颗白色冰珠自上而下坠落 + 到底部轻微回弹
+ * ============================================================ */
+.hail-cloud {
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 14px;
+    background: linear-gradient(180deg, #94a3b8 0%, #475569 100%);
+    border-radius: 14px;
+    box-shadow:
+        -11px 4px 0 -2px #94a3b8,
+        11px 4px 0 -2px #94a3b8,
+        0 4px 8px rgba(28, 40, 64, 0.22);
+    z-index: 2;
+}
+
+.hail-stone {
+    position: absolute;
+    top: 36%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #FFFFFF 0%, #B0BEC5 70%, #64748B 100%);
+    box-shadow:
+        0 0 2px rgba(255, 255, 255, 0.6),
+        inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+    animation: hail-fall 1.1s cubic-bezier(0.5, 0, 0.75, 0) infinite;
+    z-index: 1;
+}
+
+.hail-stone.hs1 { left: 24%; animation-delay: 0s; }
+.hail-stone.hs2 { left: 40%; animation-delay: 0.28s; }
+.hail-stone.hs3 { left: 56%; animation-delay: 0.55s; }
+.hail-stone.hs4 { left: 72%; animation-delay: 0.82s; }
+
+@keyframes hail-fall {
+    0%   { transform: translateY(0);    opacity: 0; }
+    10%  { opacity: 1; }
+    80%  { transform: translateY(18px); opacity: 1; }
+    88%  { transform: translateY(15px); }   /* 落地回弹 */
+    100% { transform: translateY(18px); opacity: 0; }
+}
+
+/* 窄屏适配：标题缩小，天气动画图标略缩 */
+@media (max-width: 720px) {
+    .panel-header h1 {
+        font-size: 20px;
+    }
+    .tw-icon {
+        width: 36px;
+        height: 36px;
+    }
+    .topbar-weather {
+        gap: 4px;
+        padding: 0 6px;
+    }
+    .tw-label {
+        font-size: 10.5px;
+    }
+}
+
+/* 可访问性：减少动效 */
+@media (prefers-reduced-motion: reduce) {
+    .panel-header {
+        animation: none;
+    }
+    .sun-core, .sun-rays, .sun-glow,
+    .wind-line, .rain-drop, .thunder-bolt, .thunder-flash,
+    .hail-stone {
+        animation: none !important;
+    }
+    .tw-item:hover .tw-icon {
+        transform: none;
+    }
+}
+
+/* 卡片 */
+/* 卡片：圆角 20px、内边距 20px、间距 10px（concentric radius 协调） */
+.card {
+    border-radius: 20px;
+    padding: 20px;
+    margin: 10px 0;
+    transition: transform 320ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                box-shadow 320ms ease;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        0 14px 32px rgba(28, 40, 64, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 卡片标题：与表单节奏一致（4/8/12/16 网格） */
+.card-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin: 0 0 14px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.01em;
+}
+
+.card-title .muted {
+    font-weight: 500;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+/* 网格 */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 6px;
+}
+
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 1000px) {
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+    .grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+ * 表单容器
+ * ------------------------------------------------------------
+ * - 垂直节奏 16px（紧凑但不拥挤）
+ * - 行内字段水平间距 12px（首尾视觉对齐）
+ * - 行内字段顶端对齐（避免 textarea 把旁边 input 顶飞）
+ * ============================================================ */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form .row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.form.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.form.grid-4 .span-4 {
+    grid-column: span 4;
+}
+
+/* ============================================================
+ * 字段（field）& 标签（label）& 必填（req）
+ * ------------------------------------------------------------
+ * - 标签字号 12.5px / 字重 500 / #475569
+ * - 必填以「实心红圆点」呈现，视觉比"*"更克制（Apple 风格）
+ * - 标签与输入框间距 6px（与行间 16px 构成 8/16 节奏）
+ * ============================================================ */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 120px;
+    flex: 1 1 0;
+}
+
+.field.grow { flex: 1 1 100%; }
+
+.field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #475569;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-wrap: pretty;
+    user-select: none;
+}
+
+.req {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14);
+    flex: 0 0 auto;
+    transform: translateY(-1px);
+}
+
+/* ============================================================
+ * 输入控件（input / select / textarea）
+ * ------------------------------------------------------------
+ * - 统一高度：input 38px、textarea 自由
+ * - 字号 13.5px（与标签 12.5px 形成 1px 层级差，避免视觉对齐错位）
+ * - 内边距 9px 12px（4 的倍数）、圆角 10px
+ * - 聚焦：3px 蓝晕 + 1px 蓝色边框 + 背景变白（避免玻璃化糊掉）
+ * ============================================================ */
+input, select, textarea {
+    appearance: none;
+    width: 100%;
+    height: 38px;
+    box-sizing: border-box;
+    border: 1px solid rgba(180, 190, 210, 0.55);
+    background-color: rgba(255, 255, 255, 0.78);
+    /* 顶部 1px 高光带，模拟毛玻璃 */
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 40%);
+    border-radius: 10px;
+    padding: 0 12px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    color: #1d1d1f;
+    outline: none;
+    /* 弹性缓动：focus 状态柔和落定 */
+    transition: border-color 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                box-shadow 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 180ms ease,
+                background-image 180ms ease;
+    font-family: inherit;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+textarea {
+    height: auto;
+    min-height: 64px;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.55;
+    border-radius: 12px;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+}
+
+input:hover:not(:focus):not(:disabled),
+textarea:hover:not(:focus):not(:disabled),
+select:hover:not(:focus):not(:disabled) {
+    border-color: rgba(91, 141, 239, 0.45);
+    background-color: rgba(255, 255, 255, 0.88);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 40%);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #5b8def;
+    background-color: #ffffff;
+    background-image: none;
+    box-shadow:
+        0 0 0 3px rgba(91, 141, 239, 0.18),
+        0 2px 6px rgba(91, 141, 239, 0.08);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: rgba(245, 245, 247, 0.6);
+}
+
+.form-error {
+    color: #c53030;
+    font-size: 12.5px;
+    background: rgba(255, 230, 230, 0.6);
+    border: 1px solid rgba(245, 101, 101, 0.4);
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+/* ============================================================
+ * 按钮基础样式
+ * ------------------------------------------------------------
+ * - 高度 38px（与输入框同高，对齐基准线）
+ * - 内边距 0 18px（横向撑开）
+ * - 字重 550（介于常规 400 与加粗 700 之间）
+ * - 弹性缓动：cubic-bezier(0.32, 1.4, 0.5, 1) → response≈0.3s，无明显回弹，柔和落定
+ * - 内部高光：顶部 1px 高光带 + 底部柔和投影，模拟「实体材料」质感
+ * - 按下反馈：translateY(1px) + scale(0.97)，比纯 scale 更有按压感
+ * - 释放更慢、按下更快：0.18s 进入 / 0.06s 退出，符合 Apple 的「轻触瞬时，释放舒展」
+ * ============================================================ */
+.btn {
+    appearance: none;
+    position: relative;
+    overflow: hidden;          /* 容纳 ::before shine 高光 */
+    isolation: isolate;        /* 隔离 z-index 上下文 */
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    background-color: rgba(255, 255, 255, 0.78);
+    /* 内部高光：顶部 1px 白色光带，模拟毛玻璃材质 */
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 50%);
+    color: #1d1d1f;
+    border-radius: 10px;
+    height: 38px;
+    padding: 0 18px;
+    font-size: 13.5px;
+    font-weight: 550;
+    line-height: 1;
+    cursor: pointer;
+    /* transition 顺序：transform / box-shadow（200ms 舒展） vs color / background（120ms 快速）
+       进入态 200ms（hover 更柔和），退出态通过更短 duration 实现"按下更快" */
+    transition: transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 180ms ease,
+                background-image 180ms ease,
+                color 180ms ease,
+                box-shadow 220ms ease,
+                border-color 180ms ease;
+    font-family: inherit;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    will-change: transform, box-shadow;
+}
+
+/* 按钮 shine 高光：悬停时从左到右扫过（一次，0.6s） */
+.btn::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+        100deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.5) 50%,
+        transparent 100%
+    );
+    transform: skewX(-18deg);
+    transition: left 0s;          /* 默认隐藏在左侧，hover 时启动动画 */
+    pointer-events: none;
+    z-index: 1;
+}
+
+.btn > * { position: relative; z-index: 2; }   /* 按钮内文字 / 图标在 shine 上层 */
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow:
+        0 10px 22px rgba(28, 40, 64, 0.14),
+        0 3px 8px rgba(28, 40, 64, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border-color: rgba(91, 141, 239, 0.35);
+}
+
+.btn:hover:not(:disabled)::after {
+    left: 130%;                  /* 扫过到右侧 */
+    transition: left 0.7s ease-out;
+}
+
+.btn:active:not(:disabled) {
+    /* 关键：按下时回到原位 + 略缩 + 投影变浅 = "被按下去"的触感 */
+    transform: translateY(1px) scale(0.97);
+    box-shadow:
+        0 2px 6px rgba(28, 40, 64, 0.10),
+        inset 0 1px 2px rgba(28, 40, 64, 0.06);
+    background-color: rgba(245, 247, 252, 0.95);
+    /* 按下响应更快（80ms），松开时回到 200ms 弹性 */
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                background-image 80ms ease,
+                box-shadow 80ms ease,
+                border-color 80ms ease;
+}
+
+.btn:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 3px rgba(91, 141, 239, 0.35),
+        0 6px 14px rgba(28, 40, 64, 0.10);
+    border-color: #5b8def;
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn.primary {
+    color: #fff;
+    background-color: #3a7bd5;
+    /* 主按钮：渐变 + 顶部高光（液态玻璃感） */
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #3a7bd5 0%, #5b8def 100%);
+    border-color: transparent;
+    box-shadow:
+        0 6px 16px rgba(58, 123, 213, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.btn.primary:hover:not(:disabled) {
+    background-color: #2e6bc4;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #2e6bc4 0%, #4a82e0 100%);
+    box-shadow:
+        0 12px 26px rgba(58, 123, 213, 0.42),
+        0 4px 10px rgba(58, 123, 213, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    border-color: transparent;
+}
+
+.btn.primary:active:not(:disabled) {
+    background-color: #1f5cb3;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #1f5cb3 0%, #3a7bd5 100%);
+    box-shadow:
+        0 2px 6px rgba(58, 123, 213, 0.30),
+        inset 0 1px 3px rgba(0, 0, 0, 0.10);
+}
+
+.btn.ghost {
+    background-color: transparent;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 50%);
+    border-color: rgba(180, 190, 210, 0.5);
+}
+
+.btn.ghost:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.65);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%);
+    border-color: rgba(91, 141, 239, 0.35);
+}
+
+.btn.small {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+    height: auto;
+    min-height: 28px;
+}
+
+/* 操作行 */
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.actions.right {
+    justify-content: flex-end;
+}
+
+/* TAF 输入区 */
+.taf-input {
+    width: 100%;
+    min-height: 120px;
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+.taf-msg {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12.5px;
+}
+
+.taf-msg.error {
+    background: rgba(255, 230, 230, 0.7);
+    color: #c53030;
+    border: 1px solid rgba(245, 101, 101, 0.4);
+}
+
+.taf-msg.info {
+    background: rgba(230, 240, 255, 0.7);
+    color: #2c5282;
+    border: 1px solid rgba(91, 141, 239, 0.4);
+}
+
+/* 结果列表 */
+.result-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.result-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.result-list li {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: #1d1d1f;
+    line-height: 1.5;
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 220ms ease;
+}
+
+.result-list li:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(28, 40, 64, 0.08);
+}
+
+.result-list li .row-main {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.result-list li .row-sub {
+    color: #4a5568;
+    font-size: 11.5px;
+}
+
+/* 内联标签（用于单位/静风/多变等标记） */
+.tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 999px;
+    line-height: 1.5;
+    vertical-align: middle;
+    letter-spacing: 0.2px;
+    background: rgba(58, 123, 213, 0.12);
+    color: #2d5fa3;
+    border: 1px solid rgba(58, 123, 213, 0.25);
+}
+
+.tag.tag-unit {
+    background: rgba(126, 200, 255, 0.18);
+    color: #1f4f8f;
+    border-color: rgba(126, 200, 255, 0.45);
+}
+
+.tag.tag-info {
+    background: rgba(108, 196, 216, 0.16);
+    color: #1f6c7c;
+    border-color: rgba(108, 196, 216, 0.4);
+}
+
+.tag.tag-airport {
+    background: rgba(255, 159, 67, 0.14);
+    color: #8a4d12;
+    border-color: rgba(255, 159, 67, 0.4);
+    font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+    letter-spacing: 0.5px;
+}
+
+.empty {
+    color: #8a93a6;
+    font-size: 12.5px;
+    padding: 12px 0;
+    text-align: center;
+}
+
+.empty[hidden] { display: none; }
+
+/* 状态点 */
+.dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.dot.wind { background: linear-gradient(135deg, #4a82e0, #6da9ff); }
+.dot.dust { background: linear-gradient(135deg, #c9a35d, #e0c084); }
+.dot.ice  { background: linear-gradient(135deg, #6cc4d8, #9edde7); }
+.dot.vis  { background: linear-gradient(135deg, #8a7ec9, #b29fdf); }
+.dot.criteria { background: linear-gradient(135deg, #6b7280, #9aa3b2); width: 10px; height: 10px; }
+
+/* 识别标准说明（筛选阈值卡片） */
+.criteria-card {
+    margin-top: 6px;
+}
+
+.criteria {
+    /* 4 列等宽由 .grid-4 提供；本类主要用于覆盖 grid 内部间距 */
+    gap: 12px;
+}
+
+.criteria-item {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(180, 190, 210, 0.45);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 280ms ease,
+                border-color 280ms ease;
+}
+
+.criteria-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(122, 138, 168, 0.7);
+    box-shadow: 0 6px 18px rgba(60, 80, 120, 0.08);
+}
+
+.criteria-item[data-kind="wind"]:hover { border-color: rgba(106, 138, 220, 0.6); }
+.criteria-item[data-kind="dust"]:hover { border-color: rgba(192, 158, 95, 0.7); }
+.criteria-item[data-kind="vis"]:hover  { border-color: rgba(138, 126, 201, 0.6); }
+.criteria-item[data-kind="ice"]:hover  { border-color: rgba(108, 196, 216, 0.7); }
+
+.criteria-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.criteria-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.2px;
+}
+
+.criteria-formula {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+    background: linear-gradient(135deg, rgba(110, 140, 200, 0.10), rgba(160, 180, 220, 0.10));
+    border: 1px solid rgba(110, 140, 200, 0.18);
+    border-radius: 10px;
+    padding: 6px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-variant-numeric: tabular-nums;
+}
+
+.criteria-formula .or {
+    color: #8a93a6;
+    font-weight: 500;
+    font-size: 12px;
+    padding: 0 2px;
+}
+
+.criteria-desc {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #4b5263;
+}
+
+/* EXCEL 通报预览表格（与导出 .xlsx 视觉一致：白底/网格线/居中对齐） */
+.xlsx-preview-wrap {
+    width: 100%;
+    overflow-x: auto;
+    background: #FFFFFF;
+    border-radius: 12px;
+    border: 1px solid rgba(180, 190, 210, 0.55);
+    box-shadow: 0 4px 16px rgba(28, 40, 64, 0.04);
+}
+
+.xlsx-preview {
+    width: 100%;
+    /* 进一步缩减最小宽度：720px → 600px，整体更紧凑 */
+    min-width: 600px;
+    border-collapse: collapse;
+    /* 字号从 12 → 11.5，更接近 Excel 单元格默认视觉 */
+    font-size: 11.5px;
+    color: #1d1d1f;
+    font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "宋体", sans-serif;
+    background: #FFFFFF;
+}
+
+.xlsx-preview th,
+.xlsx-preview td {
+    border: 1px solid #C9D1DC;
+    /* padding 6px 8px → 5px 6px，进一步压缩单元格 */
+    padding: 5px 6px;
+    text-align: center;
+    vertical-align: middle;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+/* 标题行（合并 5 列），与 Excel A1 一致：字号 16、加粗、淡蓝底 */
+.xlsx-preview .xlsx-title td {
+    background: linear-gradient(135deg, #E6EEF8, #DCE6F2);
+    color: #1d1d1f;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 10px 8px;
+    border: 1px solid #C9D1DC;
+}
+
+/* 制作人行：合并 5 列，加粗、左对齐、淡灰底 */
+.xlsx-preview .xlsx-publisher-row td.col-publisher {
+    background: #F8FAFD;
+    color: #1d1d1f;
+    font-weight: 600;
+    text-align: left;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    border: 1px solid #C9D1DC;
+}
+
+.xlsx-preview .xlsx-publisher-row td.col-publisher:empty::before,
+.xlsx-preview .xlsx-publisher-row td.col-publisher:only-child:empty::before {
+    /* 不会触发，留位 */
+}
+
+/* 表头行（单行）：5 列等高，浅灰底 + 加粗 */
+.xlsx-preview .xlsx-header-row th {
+    background: #F1F4F9;
+    color: #1d1d1f;
+    font-weight: 600;
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    padding: 6px 6px;
+}
+
+/* 列宽（进一步压缩：总宽 ≈ 80+128+110+80+100 = 498px，5 列） */
+.xlsx-preview .col-airport { width: 80px; }
+.xlsx-preview .col-wind { width: 128px; }
+.xlsx-preview .col-phenomenon { width: 110px; }
+.xlsx-preview .col-vis { width: 80px; }
+.xlsx-preview .col-ice { width: 100px; }
+
+/* 底部"已隐藏 N 行"提示行 */
+.xlsx-preview .xlsx-hidden-row td {
+    background: #F8FAFD;
+    color: #6b7280;
+    font-size: 11.5px;
+    padding: 8px 12px;
+    border: 1px dashed rgba(180, 190, 210, 0.5);
+    text-align: center;
+    letter-spacing: 0.3px;
+}
+
+.xlsx-preview .xlsx-hidden-row button {
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* 数据行：斑马纹（弱化）+ hover 高亮 */
+.xlsx-preview .xlsx-row td {
+    background: #FFFFFF;
+    transition: background-color 200ms ease;
+}
+
+.xlsx-preview .xlsx-row:nth-child(even) td {
+    background: #FAFBFD;
+}
+
+.xlsx-preview .xlsx-row:hover td {
+    background: #EEF4FB;
+}
+
+/* 命中行（用户在 TAF 报文中命中的机场），左侧高亮 + 浅黄底 */
+.xlsx-preview .xlsx-row-hit td {
+    background: #FFFBEA;
+    font-weight: 500;
+}
+
+.xlsx-preview .xlsx-row-hit:nth-child(even) td {
+    background: #FFF6D9;
+}
+
+.xlsx-preview .xlsx-row-hit:hover td {
+    background: #FFF1BF;
+}
+
+.xlsx-preview .xlsx-row-appended td {
+    background: #F0F7FF;
+}
+
+.xlsx-preview .xlsx-row-appended:nth-child(even) td {
+    background: #E6F0FA;
+}
+
+.xlsx-preview .xlsx-row-appended:hover td {
+    background: #DDE9F7;
+}
+
+/* 行尾 ICAO 标记 */
+.xlsx-preview .row-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #2C5282;
+    background: rgba(110, 140, 200, 0.12);
+    border: 1px solid rgba(110, 140, 200, 0.3);
+    border-radius: 6px;
+    vertical-align: middle;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    letter-spacing: 0.5px;
+}
+
+/* 空状态行 */
+.xlsx-preview .xlsx-empty td {
+    padding: 32px 16px;
+    color: #8a93a6;
+    font-size: 13px;
+    background: #FAFBFD;
+    border: 1px solid #E5E9F0;
+    letter-spacing: 0.3px;
+}
+
+/* ============================================================
+ * EXCEL 预览 - 手动编辑相关样式
+ * - 可编辑单元格：focus 浅蓝边、悬停提示
+ * - 被编辑过的单元格：左侧蓝色实心边线
+ * - 标题/表头不可编辑（contenteditable 已不挂载，但保留防御样式）
+ * - 未保存徽标：右上角圆点
+ * ============================================================ */
+
+.preview-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.xlsx-edit-hint {
+    font-size: 12px;
+    color: #6b7280;
+    background: rgba(238, 244, 251, 0.65);
+    border: 1px dashed rgba(91, 141, 239, 0.4);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+    letter-spacing: 0.2px;
+}
+
+.unsaved-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #C0392B;
+    background: rgba(255, 235, 230, 0.85);
+    border: 1px solid rgba(192, 57, 43, 0.3);
+    border-radius: 999px;
+    padding: 2px 9px;
+    letter-spacing: 0.3px;
+    animation: unsavedPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes unsavedPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.0); }
+    50% { box-shadow: 0 0 0 4px rgba(192, 57, 43, 0.12); }
+}
+
+.unsaved-badge[hidden] { display: none; }
+
+/* 可编辑单元格：hover 时显示蓝色虚线外框，提示用户"可点" */
+.xlsx-preview td[contenteditable="true"] {
+    cursor: text;
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+    position: relative;
+}
+
+.xlsx-preview td[contenteditable="true"]:hover {
+    background: rgba(238, 244, 251, 0.95) !important;
+    box-shadow: inset 0 0 0 1px rgba(91, 141, 239, 0.5);
+}
+
+.xlsx-preview td[contenteditable="true"]:focus {
+    background: #FFFFFF !important;
+    outline: none;
+    box-shadow:
+        inset 0 0 0 2px rgba(91, 141, 239, 0.85),
+        0 0 0 3px rgba(91, 141, 239, 0.18);
+}
+
+/* 被编辑过的单元格：左侧蓝色实心边线 + 浅蓝底 */
+.xlsx-preview td.xlsx-cell-edited {
+    background: rgba(238, 244, 251, 0.9) !important;
+    box-shadow: inset 4px 0 0 0 #3a7bd5;
+    font-weight: 500;
+}
+
+.xlsx-preview td.xlsx-cell-edited::after {
+    /* 右上角小角标，提示"已编辑" */
+    content: "●";
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 8px;
+    color: #3a7bd5;
+    opacity: 0.65;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* 命中行 + 被编辑的单元格：避免样式冲突 */
+.xlsx-preview .xlsx-row-hit td.xlsx-cell-edited {
+    background: rgba(255, 251, 230, 0.95) !important;
+    box-shadow: inset 4px 0 0 0 #3a7bd5, inset 0 0 0 1px rgba(192, 158, 95, 0.3);
+}
+
+/* ============================================================
+ * 超标单元格（与 Excel 导出红色字体保持一致）
+ * 触发条件（与 exporter-xlsx.js isExceed 同步）：
+ *   - B 列：识别到 wind 事件（平均风/阵风 ≥ 8 m/s）
+ *   - C 列：识别到 wind 或 dust 事件（非"无"）
+ *   - D 列：识别到 dust 事件（能见度 ≤ 2000m）
+ *   - E 列：值为"是"（满足地面结冰条件）
+ * ============================================================ */
+.xlsx-preview td.xlsx-cell-exceed {
+    color: #E74C3C !important;
+    font-weight: 600;
+}
+
+/* "已编辑" 状态的优先权高于 "超标"：保持浅蓝底，但文字仍为红色 */
+.xlsx-preview td.xlsx-cell-exceed.xlsx-cell-edited {
+    color: #E74C3C !important;
+}
+
+/* 风险列表 */
+.risk-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.risk-item {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.risk-item:hover {
+    transform: translateY(-1px);
+}
+
+.risk-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.risk-head .lvl {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #fff;
+}
+
+.risk-head .lvl.high { background: linear-gradient(135deg, #e53e3e, #f56565); }
+.risk-head .lvl.mid  { background: linear-gradient(135deg, #dd8a14, #f6ad55); }
+.risk-head .lvl.low  { background: linear-gradient(135deg, #38a169, #68d391); }
+
+.risk-meta { font-size: 11.5px; color: #4a5568; }
+.risk-desc, .risk-advice { font-size: 12px; color: #1d1d1f; line-height: 1.5; }
+.risk-actions { display: flex; justify-content: flex-end; }
+
+/* 文本结果区 */
+.result-text {
+    margin: 0;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    border-radius: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #1d1d1f;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 200px;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+/* 页脚 */
+.footer {
+    margin: 0 14px 14px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.footer-actions { display: flex; gap: 8px; }
+
+/* 日志面板 */
+.log-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 25, 40, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    animation: fadeIn 200ms ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.log-panel {
+    width: min(720px, 90vw);
+    max-height: 80vh;
+    border-radius: 20px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: saturate(180%) blur(28px);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.log-body {
+    flex: 1;
+    margin: 0;
+    padding: 12px;
+    background: rgba(20, 25, 40, 0.85);
+    color: #e3e8f3;
+    border-radius: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-y: auto;
+    max-height: 60vh;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.log-body .lvl-info  { color: #9edde7; }
+.log-body .lvl-warn  { color: #f6ad55; }
+.log-body .lvl-error { color: #fc8181; }
+.log-body .lvl-debug { color: #b0bdd1; }
+
+/* 工具类 */
+.muted { color: #6b7280; font-weight: 500; }
+.muted.small { font-size: 12px; }
+.right { margin-left: auto; }
+[hidden] { display: none !important; }
+
+/* ============================================================
+ * 报文翻译模块 - 最近翻译卡片样式
+ * - 每条历史记录用更大的卡片展示
+ * - 卡片包含：序号 + 报文类型 + ICAO + 时间戳 + 中文译文 + 回填按钮
+ * - 整张最近翻译卡片在下方独占一行，跨满左右宽度
+ * ============================================================ */
+.translate-out {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.85;
+    font-size: 13.5px;
+}
+
+.translate-error {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    background: rgba(255, 230, 230, 0.7);
+    color: #c53030;
+    border: 1px solid rgba(245, 101, 101, 0.4);
+    animation: fadeIn 200ms ease;
+}
+
+.translate-error[hidden] { display: none !important; }
+
+/* 翻译模块的「最近翻译」容器（已独立跨满左右宽度） */
+.translate-recent-card-wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============================================================
+ * 报文翻译模块 - 「最近翻译」卡片网格
+ * - 容器已独立跨满左右宽度，故卡片最小宽度提升到 320px
+ * - 容器为 auto-fill 网格：每张卡片约 320-360px
+ * - 卡片：白底毛玻璃、左侧颜色条按报文类型区分
+ * - 字段顺序：头部（序号+类型+ICAO+机场名）/ 时间 / 译文 / 原文摘要 / 回填
+ * ============================================================ */
+.translate-recent-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+    max-height: min(60vh, 540px);
+    overflow-y: auto;
+    padding: 2px 2px 6px 2px;
+}
+
+.translate-recent-list .empty {
+    grid-column: 1 / -1;
+    padding: 32px 0;
+}
+
+.translate-recent-card {
+    position: relative;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    border-radius: 14px;
+    padding: 12px 14px 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(28, 40, 64, 0.05);
+    transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 220ms ease,
+                border-color 220ms ease;
+    /* 左侧色条：根据报文类型着色 */
+    border-left: 3px solid #5b8def;
+    overflow: hidden;
+}
+
+.translate-recent-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(28, 40, 64, 0.10);
+    border-color: rgba(91, 141, 239, 0.5);
+}
+
+.translate-recent-card.is-error {
+    border-left-color: #E74C3C;
+    background: rgba(255, 244, 244, 0.65);
+}
+
+/* 头部行：序号 + 报文类型 + ICAO + 机场名 */
+.tr-card-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+}
+
+.tr-card-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(91, 141, 239, 0.15), rgba(126, 200, 255, 0.25));
+    color: #2c5282;
+    font-size: 11.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.2px;
+}
+
+.tr-card-type {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #3a7bd5, #5b8def);
+    color: #fff;
+}
+
+.tr-card-icao {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d1d1f;
+    background: rgba(110, 140, 200, 0.14);
+    border: 1px solid rgba(110, 140, 200, 0.3);
+    border-radius: 6px;
+    padding: 1px 7px;
+    letter-spacing: 0.4px;
+}
+
+.tr-airport-name {
+    font-size: 12px;
+    color: #1d1d1f;
+    font-weight: 500;
+}
+
+/* 时间戳 */
+.tr-card-time {
+    font-size: 11px;
+    color: #6b7280;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.2px;
+}
+
+/* 中文译文：突出显示，行高宽松 */
+.tr-card-chinese {
+    font-size: 13px;
+    line-height: 1.65;
+    color: #1d1d1f;
+    background: rgba(238, 244, 251, 0.55);
+    border: 1px solid rgba(91, 141, 239, 0.15);
+    border-radius: 8px;
+    padding: 8px 10px;
+    word-break: break-word;
+    max-height: 110px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+.translate-recent-card.is-error .tr-card-chinese {
+    background: rgba(255, 230, 230, 0.6);
+    border-color: rgba(231, 76, 60, 0.25);
+    color: #b91c1c;
+    font-style: italic;
+}
+
+/* 原文摘要（最长 80 字符） */
+.tr-card-snippet {
+    font-size: 11.5px;
+    color: #6b7280;
+    line-height: 1.5;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    word-break: break-all;
+    max-height: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    border-top: 1px dashed rgba(180, 190, 210, 0.4);
+    padding-top: 6px;
+}
+
+.tr-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2px;
+}
+
+#translate-recent .risk-item {
+    cursor: default;
+}
+
+.translate-item {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.translate-item:last-child {
+    margin-bottom: 0;
+}
+
+.translate-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.translate-item-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.translate-item-type {
+    font-size: 12px;
+    color: #64748b;
+    background: rgba(148, 163, 184, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.translate-item-result {
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: #1e293b;
+}
+
+.translate-item-error {
+    font-size: 13px;
+    color: #dc2626;
+    font-style: italic;
+}
+
+.translate-empty {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+#translate-recent .risk-item .risk-actions {
+    margin-top: 6px;
+}
+
+/* ============================================================
+ * 顶部右侧容器：tabs + 用户胶囊
+ * 让 tabs 与 user-pill 在同一容器内水平排列
+ * ============================================================ */
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* ============================================================
+ * 用户胶囊（topbar 右上角）
+ * 点击后弹出用户名弹窗；带圆形头像 + 名称
+ * 设计：进入 hover 浮起 + 蓝色描边高亮；按下时下压回弹
+ * ============================================================ */
+.user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    appearance: none;
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    background-color: rgba(255, 255, 255, 0.7);
+    /* 内部高光：顶部 1px 光带，模拟毛玻璃 */
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%);
+    border-radius: 999px;
+    padding: 4px 14px 4px 4px;
+    cursor: pointer;
+    font-family: inherit;
+    color: #1d1d1f;
+    transition: 
+        transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        background-color 180ms ease,
+        background-image 180ms ease,
+        box-shadow 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        border-color 180ms ease;
+    -webkit-tap-highlight-color: transparent;
+    will-change: transform, box-shadow;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 用户胶囊 hover 状态：上浮 + 发光 */
+.user-pill:hover {
+    transform: translateY(-3px) scale(1.02);
+    background-color: rgba(255, 255, 255, 0.92);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 50%);
+    box-shadow:
+        0 12px 28px rgba(28, 40, 64, 0.18),
+        0 4px 8px rgba(28, 40, 64, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border-color: rgba(91, 141, 239, 0.5);
+}
+
+/* 用户胶囊 hover 时的光泽扫过效果 */
+.user-pill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    transition: left 500ms ease;
+    pointer-events: none;
+}
+
+.user-pill:hover::after {
+    left: 150%;
+    transition: left 600ms ease;
+}
+
+/* 用户胶囊点击反馈 */
+.user-pill:active {
+    transform: translateY(1px) scale(0.97);
+    background-color: rgba(245, 247, 252, 0.95);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%);
+    box-shadow:
+        0 2px 6px rgba(28, 40, 64, 0.12),
+        inset 0 2px 4px rgba(28, 40, 64, 0.06);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                box-shadow 80ms ease,
+                border-color 80ms ease;
+}
+
+/* 用户胶囊聚焦态 */
+.user-pill:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 3px rgba(91, 141, 239, 0.35),
+        0 6px 14px rgba(28, 40, 64, 0.10);
+    border-color: #5b8def;
+}
+
+.user-pill[hidden] { display: none; }
+
+/* 用户头像微交互 */
+.user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7ec8ff, #3a7bd5);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 4px 10px rgba(58, 123, 213, 0.35);
+    flex-shrink: 0;
+    letter-spacing: 0.2px;
+    transition: 
+        transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1),
+        box-shadow 220ms ease;
+}
+
+.user-pill:hover .user-avatar {
+    transform: scale(1.08);
+    box-shadow: 0 6px 14px rgba(58, 123, 213, 0.5);
+}
+
+.user-pill:active .user-avatar {
+    transform: scale(0.95);
+}
+
+.user-name {
+    font-size: 13px;
+    font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #1d1d1f;
+}
+
+/* ============================================================
+ * 用户名弹窗：毛玻璃大圆角，弹性缓动动画
+ * z-index 高于 log-overlay(200)
+ * ============================================================ */
+.user-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 25, 40, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 16px;
+    opacity: 0;
+    transition: opacity 220ms ease;
+}
+
+.user-modal[hidden] { display: none; }
+
+.user-modal.show { opacity: 1; }
+
+.user-modal-card {
+    width: min(440px, 92vw);
+    border-radius: 22px;
+    padding: 22px 22px 18px 22px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: saturate(180%) blur(28px);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transform: scale(0.96) translateY(8px);
+    opacity: 0;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 220ms ease;
+}
+
+.user-modal.show .user-modal-card {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+}
+
+.user-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 8px;
+}
+
+.user-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.2px;
+}
+
+.user-modal-close {
+    appearance: none;
+    border: 0;
+    background-color: transparent;
+    background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0) 50%);
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 10px;
+    border-radius: 8px;
+    transition: background-color 180ms ease, color 180ms ease, transform 200ms ease;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.user-modal-close:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: #1d1d1f;
+}
+
+.user-modal-close:active {
+    transform: scale(0.92);
+    background-color: rgba(0, 0, 0, 0.10);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease;
+}
+
+.user-modal-body { margin-top: 8px; }
+
+.user-modal-desc {
+    margin: 0 0 12px 0;
+    color: #6b7280;
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+.user-input {
+    width: 100%;
+    appearance: none;
+    border: 1px solid rgba(180, 190, 210, 0.6);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #1d1d1f;
+    outline: none;
+    transition: border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.user-input::placeholder {
+    color: #aab0bd;
+}
+
+.user-input:focus {
+    border-color: #5b8def;
+    box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.18);
+    background: rgba(255, 255, 255, 1);
+}
+
+.user-modal-error {
+    margin-top: 8px;
+    color: #c53030;
+    font-size: 12.5px;
+    background: rgba(255, 230, 230, 0.7);
+    border: 1px solid rgba(245, 101, 101, 0.4);
+    padding: 6px 10px;
+    border-radius: 8px;
+    animation: fadeIn 200ms ease;
+}
+
+.user-modal-error[hidden] { display: none; }
+
+.user-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* 窄屏适配：tabs 与 user-pill 各自换行展示 */
+@media (max-width: 720px) {
+    .topbar-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .user-name {
+        max-width: 90px;
+    }
+}
+
+
+
+/* ============================================================
+ * 通用确认弹窗（替代浏览器原生 confirm）
+ * 与 user-modal 风格统一：毛玻璃 + 大圆角 + 弹性缓动
+ * z-index 高于 log-overlay(200) 但低于 user-modal(300)
+ * ============================================================ */
+.confirm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 25, 40, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 280;
+    padding: 16px;
+    opacity: 0;
+    transition: opacity 220ms ease;
+}
+
+.confirm-modal[hidden] { display: none; }
+
+.confirm-modal.show { opacity: 1; }
+
+.confirm-modal-card {
+    width: min(420px, 92vw);
+    border-radius: 22px;
+    padding: 22px 22px 18px 22px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: saturate(180%) blur(28px);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transform: scale(0.96) translateY(8px);
+    opacity: 0;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 220ms ease;
+}
+
+.confirm-modal.show .confirm-modal-card {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+}
+
+.confirm-modal-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    gap: 8px;
+}
+
+.confirm-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.2px;
+    line-height: 1.4;
+}
+
+.confirm-modal-body { margin-top: 8px; }
+
+.confirm-modal-message {
+    margin: 0;
+    color: #4b5563;
+    font-size: 13.5px;
+    line-height: 1.65;
+    word-break: break-word;
+}
+
+.confirm-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+/* 危险操作按钮（红色强调） */
+.btn.danger {
+    color: #fff;
+    background-color: #e23b3b;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #e23b3b 0%, #ef5350 100%);
+    border-color: transparent;
+    box-shadow:
+        0 6px 16px rgba(226, 59, 59, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.btn.danger:hover:not(:disabled) {
+    background-color: #cf2e2e;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #cf2e2e 0%, #d63a3a 100%);
+    box-shadow:
+        0 12px 26px rgba(226, 59, 59, 0.42),
+        0 4px 10px rgba(226, 59, 59, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.btn.danger:active:not(:disabled) {
+    background-color: #b32626;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #b32626 0%, #cf2e2e 100%);
+    box-shadow:
+        0 2px 6px rgba(226, 59, 59, 0.30),
+        inset 0 1px 3px rgba(0, 0, 0, 0.10);
+}
+
+/* ============================================================
+ * +1 按钮激活态（次日日期）
+ * 激活后：蓝色渐变填充 + 白字 + 强阴影 + 圆环强调边框
+ * 文字在「次日」/「后日」之间切换
+ * 设计：后日 = 橙色高亮（液态玻璃感）；次日 = 默认白色
+ * ============================================================ */
+.ndr-time-row > .ndr-time-add.is-after {
+    color: #fff;
+    background-color: #f89f48;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #f89f48 0%, #ffb45e 100%);
+    border-color: transparent;
+    box-shadow:
+        0 4px 12px rgba(248, 159, 72, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.ndr-time-row > .ndr-time-add.is-after:hover:not(:disabled) {
+    background-color: #ef8a2c;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #ef8a2c 0%, #ffa94d 100%);
+    box-shadow:
+        0 6px 16px rgba(248, 159, 72, 0.52),
+        inset 0 1px 0 rgba(255, 255, 255, 0.40);
+    transform: translateY(-1px);
+}
+
+.ndr-time-row > .ndr-time-add.is-after:active {
+    transform: translateY(1px) scale(0.96);
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #e07b1e 0%, #f89f48 100%);
+    box-shadow:
+        0 1px 4px rgba(248, 159, 72, 0.42),
+        inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+
+
+
+/* ============================================================
+ * 「机场预警模板发布」样式段
+ * - 严格对齐 docx 模板的橙底标题 + 左侧竖列 + 橙色边框
+ * - 3 级颜色（红/橙/黄）通过 CSS 变量动态切换，CSS 内不硬编码具体等级色
+ * - 符合 Apple Design Language：大圆角、毛玻璃、弹性缓动动画
+ * ============================================================ */
+
+/* 3 级预警颜色（与 docx 模板一致） */
+:root {
+    --wt-level-red-bg: #E74C3C;
+    --wt-level-red-text: #FFFFFF;
+    --wt-level-red-phenomenon: #C0392B;
+    --wt-level-orange-bg: #F89F48;
+    --wt-level-orange-text: #404040;
+    --wt-level-orange-phenomenon: #F78D1E;
+    --wt-level-yellow-bg: #FFEE00;
+    --wt-level-yellow-text: #7E5109;
+    --wt-level-yellow-phenomenon: #7E5109;
+}
+
+/* 预览卡整体：白底、大圆角、表格边框模拟 */
+.wt-preview {
+    --wt-bg: #F89F48;
+    --wt-text: #404040;
+    --wt-phenomenon: #F78D1E;
+
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 12px 32px rgba(28, 40, 64, 0.10);
+    overflow: hidden;
+    font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "宋体", sans-serif;
+    color: #1d1d1f;
+    transition: box-shadow 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.wt-preview:hover {
+    box-shadow: 0 16px 40px rgba(28, 40, 64, 0.14);
+}
+
+/* 标题行：颜色由 --wt-bg 动态决定,文字居左,logo 在左 */
+.wt-title-bar {
+    display: flex;
+    align-items: center;
+    background: var(--wt-bg);
+    color: var(--wt-text);
+    padding: 18px 24px;
+    border-radius: 16px 16px 0 0;
+    letter-spacing: 2px;
+    transition: background 320ms ease, color 320ms ease;
+}
+
+.wt-title-logo {
+    width: auto;
+    height: 44px;
+    max-width: 120px;
+    margin-right: 16px;
+    flex-shrink: 0;
+    object-fit: contain;
+    /* 让 logo 文字在所有 4 个底色上都清晰可读：轻微白色描边 */
+    filter: drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.8))
+            drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+}
+
+.wt-title-text {
+    flex: 1;
+    text-align: left;
+    font-size: 26px;
+    font-weight: 700;
+    font-family: "宋体", "SimHei", "Microsoft YaHei", sans-serif;
+    padding-left: 12px;
+}
+
+.wt-title-text .wt-airport-name {
+    margin: 0 2px;
+}
+
+.wt-title-text .wt-level-name {
+    margin: 0 2px;
+}
+
+/* 信息行：左右两列，橙色边框 */
+.wt-row {
+    display: flex;
+    border-bottom: 1px solid #F89F48;
+    min-height: 48px;
+}
+
+.wt-row-left {
+    flex: 0 0 35%;
+    border-right: 1px solid #F89F48;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wt-row-right {
+    flex: 1;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    color: #1d1d1f;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* 天气现象 + 信息组合行：
+   - 整体是一个大单元格，与下方 wt-merge 之间一条横线
+   - 左 35%：现象（垂直居中、橙色 36pt）
+   - 右 65%：三行信息（序号/时间/电话），行间用横线分隔
+   - 高度 220→165（0.75x），匹配右侧三行压缩 */
+.wt-row-info {
+    align-items: stretch;
+    min-height: 165px;
+}
+
+.wt-row-phenomenon-cell {
+    /* 左侧现象单元格：让现象在垂直方向居中 */
+    align-items: center;
+    justify-content: center;
+    padding: 24px 12px;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.wt-row-info-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wt-info-item {
+    flex: 1 1 0;
+    /* 单元格高度为原始值的 0.75（min-height 56→42，padding 14→10.5≈10） */
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    color: #1d1d1f;
+    font-size: 16px;
+    line-height: 1.6;
+    border-bottom: 1px solid #F89F48;
+    min-height: 42px;
+}
+
+.wt-info-item:last-child {
+    border-bottom: 0;
+}
+
+/* 隐藏的表单行（发布时间/电话/制作人 自动生成） */
+.wt-field-hidden {
+    display: none !important;
+}
+
+/* 左侧天气现象：36px 加粗，颜色由 --wt-phenomenon 决定 */
+.wt-phenomenon {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--wt-phenomenon);
+    text-align: center;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    letter-spacing: 4px;
+    word-break: break-all;
+    transition: color 320ms ease;
+    line-height: 1.2;
+}
+
+.wt-phenomenon.is-placeholder {
+    font-size: 14px;
+    font-weight: 500;
+    color: #b0b7c3;
+    letter-spacing: 1px;
+}
+
+.wt-serial,
+.wt-publish-time,
+.wt-phone,
+.wt-producer-name {
+    margin-left: 4px;
+    font-weight: 500;
+    color: #1d1d1f;
+}
+
+.wt-serial.is-placeholder,
+.wt-publish-time.is-placeholder,
+.wt-phone.is-placeholder,
+.wt-airport-name.is-placeholder,
+.wt-level-name.is-placeholder,
+.wt-producer-name.is-placeholder {
+    color: #b0b7c3;
+    font-weight: 400;
+}
+
+/* 合并行：当前/预计天气情况 + 制作人 */
+.wt-merge {
+    padding: 16px 20px;
+    border-bottom: 1px solid #F89F48;
+    text-indent: 2em;
+    line-height: 1.8;
+    color: #1d1d1f;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 32px;
+}
+
+.wt-merge.is-placeholder {
+    text-indent: 0;
+    color: #b0b7c3;
+    font-style: italic;
+}
+
+.wt-producer {
+    padding: 12px 20px;
+    text-align: right;
+    color: #1d1d1f;
+    font-size: 14px;
+}
+
+/* 错误条：半透明红底 + 左侧红边 + 弹性淡入 */
+/* ============================================================
+ * 表单错误条（wt-error）
+ * ------------------------------------------------------------
+ * - 左侧 3px 红条 + 浅红底
+ * - 内边距 11px 14px / 圆角 10px
+ * - 弹入动画：左移 6px + 淡入（弹性缓动）
+ * ============================================================ */
+.wt-error {
+    background: rgba(231, 76, 60, 0.10);
+    border-left: 3px solid #E74C3C;
+    padding: 11px 14px;
+    border-radius: 10px;
+    color: #b91c1c;
+    font-size: 13px;
+    line-height: 1.5;
+    animation: wtErrorIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.wt-error[hidden] { display: none !important; }
+
+@keyframes wtErrorIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+ * 操作按钮组
+ * ------------------------------------------------------------
+ * - 与上一行间距 20px（视觉分隔）
+ * - position: relative（弹窗内联定位基准）
+ * - 主按钮（截图）放大一点：padding 0 22px、字重 600
+ * ============================================================ */
+.wt-actions {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    align-items: center;
+}
+
+.wt-actions .btn.primary {
+    padding: 0 22px;
+    font-weight: 600;
+}
+
+.wt-actions .btn {
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 200ms ease, color 200ms ease, box-shadow 200ms ease;
+}
+
+.wt-actions .btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* 右侧"刷新"按钮（与 input 同行） */
+.wt-refresh-btn {
+    height: 38px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    border-radius: 8px;
+}
+
+/* 窄屏适配 */
+@media (max-width: 720px) {
+    .wt-title-bar {
+        padding: 16px;
+    }
+    .wt-title-logo {
+        width: 40px;
+        height: 40px;
+        font-size: 22px;
+    }
+    .wt-title-text {
+        font-size: 22px;
+        letter-spacing: 1px;
+    }
+    .wt-phenomenon {
+        font-size: 28px;
+    }
+    .wt-row-left {
+        flex: 0 0 40%;
+    }
+}
+
+/* ============================================================
+ * 「次日风险制作」模块样式
+ * - 沿用 Apple Design Language：毛玻璃、大圆角、弹性缓动
+ * - 复用 .card.glass / .btn / .field / .actions / .risk-list 等已有 class
+ * ============================================================ */
+
+/* 2 列响应式面板：宽屏左右分栏，窄屏单列 */
+.ndr-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+@media (min-width: 1100px) {
+    .ndr-panel-grid {
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    }
+}
+
+.ndr-col-left,
+.ndr-col-right {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ndr-list-card {
+    /* 列表 card 占满右列 */
+    height: 100%;
+}
+
+/* 表单网格：紧凑化 */
+.ndr-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ndr-form .row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ndr-form .field {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.ndr-form .field input,
+.ndr-form .field select,
+.ndr-form .field textarea {
+    padding: 7px 10px;
+    font-size: 13px;
+}
+
+/* 天气类型 chip 多选 */
+.ndr-weather-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0;
+}
+
+.ndr-chip {
+    appearance: none;
+    border: 1px solid rgba(180, 190, 210, 0.6);
+    background-color: rgba(255, 255, 255, 0.65);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%);
+    border-radius: 999px;
+    padding: 5px 13px;
+    font-size: 12px;
+    color: #4a5568;
+    cursor: pointer;
+    transition: transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 160ms ease,
+                background-image 160ms ease,
+                border-color 160ms ease,
+                color 160ms ease,
+                box-shadow 200ms ease;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.04);
+    outline: none;
+}
+
+.ndr-chip:focus {
+    outline: none;
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.04),
+                0 0 0 2px rgba(58, 123, 213, 0.3);
+}
+
+.ndr-chip:focus:not(:focus-visible) {
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.04);
+}
+
+.ndr-chip:focus-visible {
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.04),
+                0 0 0 2px rgba(58, 123, 213, 0.5);
+}
+
+.ndr-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(91, 141, 239, 0.5);
+    background-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 3px 8px rgba(28, 40, 64, 0.08);
+}
+
+.ndr-chip:active {
+    transform: translateY(1px) scale(0.96);
+    background-color: rgba(91, 141, 239, 0.12);
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.05);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                box-shadow 80ms ease;
+}
+
+.ndr-chip.active {
+    color: #fff;
+    background-color: #3a7bd5;
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, rgba(91, 141, 239, 0.95), rgba(126, 200, 255, 0.95));
+    border-color: transparent;
+    box-shadow:
+        0 4px 10px rgba(58, 123, 213, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.ndr-chip.active:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 6px 14px rgba(58, 123, 213, 0.36),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.ndr-chip.active:active {
+    transform: translateY(1px) scale(0.96);
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 50%),
+        linear-gradient(135deg, #2e6bc4 0%, #4a82e0 100%);
+    box-shadow:
+        0 1px 3px rgba(58, 123, 213, 0.30),
+        inset 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+
+/* 错误提示 */
+.ndr-error {
+    background: rgba(231, 76, 60, 0.10);
+    border-left: 3px solid #E74C3C;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #c53030;
+    font-size: 12.5px;
+    animation: fadeIn 220ms ease;
+}
+
+.ndr-error[hidden] { display: none !important; }
+
+/* ============================================================
+ * 航班文件上传组件（AOC 共享表格 → 附表2 D 列影响航班匹配）
+ * 设计：毛玻璃半透明 + 大圆角 + 状态色平滑过渡
+ * ============================================================ */
+.ndr-upload {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(244, 248, 254, 0.45) 100%);
+    border: 1px solid rgba(180, 190, 210, 0.45);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.6) inset,
+        0 1px 2px rgba(28, 40, 64, 0.04);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ndr-upload-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ndr-upload-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d3748;
+    letter-spacing: 0.2px;
+}
+
+.ndr-upload-hint {
+    flex: 1;
+    min-width: 0;
+}
+
+.ndr-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 选择文件按钮（label 模拟按钮，触发隐藏的 input） */
+.ndr-upload-btn {
+    cursor: pointer;
+    margin: 0;
+    user-select: none;
+    transition: transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 160ms ease,
+                background-image 160ms ease,
+                border-color 160ms ease,
+                box-shadow 200ms ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.ndr-upload-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(28, 40, 64, 0.14);
+}
+.ndr-upload-btn:active {
+    transform: translateY(1px) scale(0.97);
+    box-shadow: 0 2px 6px rgba(28, 40, 64, 0.08);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                box-shadow 80ms ease;
+}
+
+/* 状态文本：muted / pending / ok / err */
+.ndr-upload-status {
+    flex: 1;
+    min-width: 0;
+    transition: color 220ms ease;
+}
+.ndr-upload-status.muted   { color: #718096; }
+.ndr-upload-status.pending {
+    color: #dd8a14;
+    animation: ndr-status-pulse 1.2s ease-in-out infinite;
+}
+.ndr-upload-status.ok      { color: #2f855a; }
+.ndr-upload-status.err     { color: #c53030; }
+
+@keyframes ndr-status-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+/* 文件名：超出截断 */
+.ndr-upload-filename {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #4a5568;
+}
+.ndr-upload-filename[hidden] { display: none !important; }
+
+/* 清除按钮 */
+.ndr-upload-clear {
+    margin: 0;
+}
+.ndr-upload-clear[hidden] { display: none !important; }
+
+/* 机场输入提示 */
+.ndr-hint {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.ndr-hint.ok  { color: #2f855a; }
+.ndr-hint.err { color: #c53030; }
+
+.ndr-hint[hidden] { display: none !important; }
+
+/* 风险列表：扑克牌样式（桌面布局） */
+.ndr-deck {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 18px 16px;
+    max-height: min(72vh, 760px);
+    overflow-y: auto;
+    padding: 18px 8px 22px 8px;
+    /* 桌面（铺牌）背景：极淡的纹理 */
+    background:
+        radial-gradient(circle at 0 0, rgba(91, 141, 239, 0.06), transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(126, 200, 255, 0.06), transparent 50%),
+        rgba(244, 248, 254, 0.4);
+    border-radius: 14px;
+}
+
+/* 单张扑克牌：约 200 × 290 */
+.ndr-playing-card {
+    position: relative;
+    aspect-ratio: 5 / 7.2;
+    min-height: 260px;
+    border-radius: 14px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 252, 254, 0.85) 100%);
+    border: 1px solid rgba(180, 190, 210, 0.55);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.6) inset,
+        0 2px 4px rgba(28, 40, 64, 0.04),
+        0 8px 16px rgba(28, 40, 64, 0.10),
+        0 16px 32px rgba(28, 40, 64, 0.08);
+    padding: 10px 12px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 280ms ease,
+                border-color 280ms ease;
+    overflow: hidden;
+    isolation: isolate;
+    /* 默认倾斜 ±1°，让多张牌"扇开"的效果（通过 nth-child 实现） */
+    transform-origin: center;
+}
+
+/* 多张牌轻微扇开（奇数偶数相反） */
+.ndr-playing-card:nth-child(odd)  { transform: rotate(-1.4deg); }
+.ndr-playing-card:nth-child(even) { transform: rotate(1.4deg); }
+.ndr-playing-card:nth-child(3n)   { transform: rotate(-0.6deg) translateY(-2px); }
+.ndr-playing-card:nth-child(5n)   { transform: rotate(0.8deg)  translateY(2px); }
+
+/* 悬停时居中、抬起、亮起阴影 */
+.ndr-playing-card:hover {
+    transform: rotate(0deg) translateY(-8px) scale(1.04);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.7) inset,
+        0 4px 8px rgba(28, 40, 64, 0.06),
+        0 18px 32px rgba(28, 40, 64, 0.16),
+        0 30px 56px rgba(28, 40, 64, 0.18);
+    border-color: rgba(91, 141, 239, 0.7);
+    z-index: 5;
+}
+
+/* 等级色条：卡片左边的纵向色带（取代原来的左侧 3px 边） */
+.ndr-playing-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: linear-gradient(180deg, #cbd5e0 0%, #a0aec0 100%);
+    border-top-left-radius: 14px;
+    border-bottom-left-radius: 14px;
+}
+
+.ndr-playing-card.level-high::before { background: linear-gradient(180deg, #e53e3e 0%, #f56565 100%); }
+.ndr-playing-card.level-mid::before  { background: linear-gradient(180deg, #dd8a14 0%, #f6ad55 100%); }
+.ndr-playing-card.level-low::before  { background: linear-gradient(180deg, #38a169 0%, #68d391 100%); }
+
+/* 卡片四角的花色 + 序号 */
+.ndr-card-corner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ndr-card-top {
+    margin-bottom: 2px;
+}
+
+/* 右下角的花色（与左上呼应） */
+.ndr-card-corner.ndr-card-bottom-corner {
+    margin-top: 2px;
+    align-self: flex-end;
+    flex-direction: row-reverse;
+    width: 100%;
+}
+
+.ndr-card-no {
+    font-size: 10.5px;
+    color: #6b7280;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+.ndr-card-suit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.ndr-card-suit.high { background: linear-gradient(135deg, #e53e3e, #f56565); }
+.ndr-card-suit.mid  { background: linear-gradient(135deg, #dd8a14, #f6ad55); }
+.ndr-card-suit.low  { background: linear-gradient(135deg, #f1c40f, #f6d860); color: #7e5109; }
+
+/* 中央：机场名（醒目的图案位置） */
+.ndr-card-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    padding: 6px 4px 8px 4px;
+}
+
+.ndr-card-airport {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1d1d1f;
+    line-height: 1.2;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: 0.2px;
+    word-break: break-all;
+}
+
+.ndr-card-icao {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    color: #2c5282;
+    background: rgba(110, 140, 200, 0.14);
+    border: 1px solid rgba(110, 140, 200, 0.35);
+    border-radius: 6px;
+    padding: 1px 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.ndr-card-level-name {
+    font-size: 11px;
+    color: #4a5568;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.3;
+    text-align: center;
+    margin-top: 2px;
+}
+
+.ndr-card-level-name.high { color: #c53030; }
+.ndr-card-level-name.mid  { color: #b7791f; }
+.ndr-card-level-name.low  { color: #276749; }
+
+/* 卡片分隔线 */
+.ndr-card-sep {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(180, 190, 210, 0.5), transparent);
+    margin: 2px 0 4px 0;
+}
+
+/* 卡片底部信息：时段 + 天气 chip + 预报 */
+.ndr-card-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ndr-card-time {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.3;
+    background: rgba(238, 244, 251, 0.7);
+    border: 1px solid rgba(91, 141, 239, 0.18);
+    border-radius: 7px;
+    padding: 4px 6px;
+    color: #1d1d1f;
+}
+
+.ndr-card-time .time-label {
+    color: #6b7280;
+    font-size: 10px;
+    font-weight: 500;
+    flex: 0 0 auto;
+    letter-spacing: 0.2px;
+}
+
+.ndr-card-time .time-range {
+    color: #1d1d1f;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1px;
+    word-break: break-all;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ndr-card-weather {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.ndr-card-weather .ndr-weather-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ndr-card-forecast {
+    font-size: 11px;
+    line-height: 1.45;
+    color: #4a5568;
+    background: rgba(252, 252, 254, 0.8);
+    border: 1px solid rgba(180, 190, 210, 0.4);
+    border-radius: 7px;
+    padding: 5px 7px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* 隐藏的旧 ndr-card 类，保留兼容（防止 .ndr-item / .ndr-card 旧样式冲突） */
+.ndr-list,
+.ndr-item,
+.ndr-card:not(.ndr-playing-card) {
+    display: none !important;
+}
+
+/* 卡片右下角的花色（呼应左上） */
+.ndr-card-bottom .ndr-card-suit {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+}
+
+/* 删除按钮：默认隐藏在卡片底部，悬停时滑出 */
+.ndr-card-actions {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 200ms ease, transform 200ms ease;
+    z-index: 4;
+}
+
+.ndr-playing-card:hover .ndr-card-actions {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* 风险卡片：可点击 → 鼠标变手型 + 悬停浮起 + 键盘聚焦轮廓 */
+.ndr-playing-card {
+    cursor: pointer;
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, outline 200ms ease;
+}
+.ndr-playing-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+}
+.ndr-playing-card:focus-visible {
+    outline: 3px solid rgba(99, 179, 237, 0.7);
+    outline-offset: 2px;
+}
+.ndr-playing-card:active {
+    transform: translateY(-1px) scale(1.005);
+}
+
+/* 当前正在编辑的卡片：蓝色光晕 + 左侧细色条 */
+.ndr-playing-card.is-editing {
+    box-shadow:
+        0 0 0 2px rgba(66, 153, 225, 0.85),
+        0 18px 40px rgba(66, 153, 225, 0.25);
+    transform: translateY(-3px);
+}
+.ndr-playing-card.is-editing::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: linear-gradient(180deg, #4299e1, #3182ce);
+    z-index: 3;
+}
+
+/* 表单标题：编辑态用主题色 + 微弱脉动 */
+.card-title.editing {
+    color: #2b6cb0;
+    position: relative;
+}
+.card-title.editing::after {
+    content: '·';
+    margin-left: 6px;
+    color: #4299e1;
+    font-weight: 700;
+    animation: ndr-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ndr-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* 取消编辑按钮：仅编辑态可见，使用柔色样式 */
+#ndr-cancel-edit {
+    margin-left: 6px;
+    transition: background 200ms ease, color 200ms ease;
+}
+#ndr-cancel-edit:hover {
+    background: rgba(66, 153, 225, 0.12);
+    color: #2b6cb0;
+}
+
+/* 机场输入联想浮层 */
+.ndr-icao-wrap { position: relative; }
+
+/* 时间输入行：输入框 + +1 按钮 并排 */
+.ndr-time-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+}
+
+.ndr-time-row > input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ndr-time-row > .ndr-time-add {
+    flex: 0 0 auto;
+    min-width: 52px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    /* 未激活（默认）：中性灰白调，与输入框风格一致；与激活态形成强对比 */
+    border: 1px solid rgba(180, 190, 210, 0.65);
+    background-color: rgba(255, 255, 255, 0.85);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 50%);
+    color: #475569;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                box-shadow 200ms ease,
+                background-color 160ms ease,
+                background-image 160ms ease,
+                color 160ms ease,
+                border-color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.04);
+}
+
+.ndr-time-row > .ndr-time-add:hover:not(.active) {
+    border-color: rgba(148, 163, 184, 0.75);
+    color: #1e293b;
+    background-color: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 2px 6px rgba(28, 40, 64, 0.08);
+    transform: translateY(-1px);
+}
+
+.ndr-time-row > .ndr-time-add:active {
+    transform: translateY(1px) scale(0.96);
+    background-color: rgba(203, 213, 225, 0.5);
+    box-shadow: 0 1px 2px rgba(28, 40, 64, 0.10);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                box-shadow 80ms ease,
+                color 80ms ease;
+}
+
+.ndr-suggest {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(180, 190, 210, 0.6);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 50;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.ndr-suggest[hidden] { display: none !important; }
+
+.ndr-suggest-item {
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    transition: background 120ms ease;
+    font-size: 12.5px;
+    line-height: 1.3;
+}
+
+.ndr-suggest-item:hover,
+.ndr-suggest-item.active {
+    background: linear-gradient(135deg, rgba(91, 141, 239, 0.14), rgba(126, 200, 255, 0.18));
+}
+
+.ndr-suggest-item .name {
+    color: #1d1d1f;
+    font-weight: 500;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ndr-suggest-item .icao {
+    color: #2c5282;
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    background: rgba(110, 140, 200, 0.14);
+    border: 1px solid rgba(110, 140, 200, 0.3);
+    border-radius: 6px;
+    padding: 1px 6px;
+    flex: 0 0 auto;
+}
+
+.ndr-suggest-empty {
+    padding: 8px 10px;
+    color: #6b7280;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* ============================================================
+ * 机场预警模板 - 交互增强样式
+ * - 发布序号确认弹窗（毛玻璃 / 弹性缓动）
+ * - 机场联想下拉
+ * - 等级数字输入框
+ * ============================================================ */
+
+/* 机场输入框容器：让联想下拉相对定位 */
+.wt-airport-input-wrap {
+    position: relative;
+    width: 100%;
+}
+
+/* 联想下拉：绝对定位在输入框下方 */
+.wt-airport-suggest {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+    z-index: 50;
+    padding: 4px 0;
+}
+
+.wt-airport-suggest-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+    user-select: none;
+    font-size: 13px;
+}
+
+.wt-airport-suggest-item:hover,
+.wt-airport-suggest-item.is-active {
+    background: rgba(110, 140, 200, 0.12);
+    color: #1d1d1f;
+}
+
+.wt-airport-suggest-item:active {
+    background: rgba(110, 140, 200, 0.22);
+}
+
+.wt-airport-suggest-item .wt-as-name {
+    color: #1d1d1f;
+    font-weight: 500;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wt-airport-suggest-item .wt-as-codes {
+    color: #2c5282;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    background: rgba(110, 140, 200, 0.14);
+    border: 1px solid rgba(110, 140, 200, 0.3);
+    border-radius: 6px;
+    padding: 2px 8px;
+    flex: 0 0 auto;
+}
+
+.wt-airport-suggest-empty {
+    padding: 12px 14px;
+    color: #6b7280;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* 等级输入框：靠左显示、不加粗（与其他输入框统一） */
+.field input[name="level"] {
+    max-width: 220px;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    font-size: 13.5px;
+    letter-spacing: 0.05em;
+}
+
+/* ============================================================
+ * 模板表单第一行三列宽度协调
+ * ------------------------------------------------------------
+ * - 机场（ICAO/中文都能放下）→ flex: 1.7，主输入位
+ * - 等级（双字 黄色/橙色/红色 + placeholder）→ 固定 220px
+ * - 天气类型（雷雨/大风/沙尘）→ flex: 1.3，补充位
+ * 比例 1.7 : 220 : 1.3 视觉接近"主-辅-辅"
+ * ============================================================ */
+#wt-form .row:first-of-type .field:nth-child(1) { flex: 1.7 1 220px; }
+#wt-form .row:first-of-type .field:nth-child(2) { flex: 0 0 220px; }
+#wt-form .row:first-of-type .field:nth-child(3) { flex: 1.3 1 160px; }
+
+/* ============================================================
+ * 发布序号确认弹窗（内联弹出，紧贴「一键截图」按钮上方）
+ * ------------------------------------------------------------
+ * - 定位：position: absolute，相对 .wt-actions
+ * - 尺寸：260px 宽、紧凑内边距 14px
+ * - 不使用 backdrop，避免阻挡用户操作
+ * - 弹出位置：按钮上方 6px，左对齐「一键截图」按钮
+ * ============================================================ */
+.wt-modal {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    pointer-events: auto;
+}
+
+.wt-modal[hidden] {
+    display: none !important;
+}
+
+.wt-modal-dialog {
+    position: relative;
+    width: 260px;
+    padding: 14px 14px 12px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.16),
+        0 4px 10px rgba(0, 0, 0, 0.08);
+    text-align: center;
+    animation: wt-modal-spring 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes wt-modal-spring {
+    0% {
+        opacity: 0;
+        transform: scale(0.92) translateY(6px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.wt-modal-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+}
+
+.wt-serial-display {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1d1d1f;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+    margin: 4px 0 10px;
+    user-select: text;
+    word-break: break-all;
+    line-height: 1.2;
+}
+
+.wt-serial-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 12px;
+}
+
+.wt-serial-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background-color: rgba(255, 255, 255, 0.85);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 50%);
+    color: #1d1d1f;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 160ms ease,
+                background-image 160ms ease,
+                box-shadow 200ms ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.wt-serial-btn:hover:not(:disabled) {
+    background-color: rgba(91, 141, 239, 0.18);
+    transform: scale(1.06);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10);
+}
+
+.wt-serial-btn:active:not(:disabled) {
+    transform: scale(0.92);
+    background-color: rgba(91, 141, 239, 0.32);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease,
+                box-shadow 80ms ease;
+}
+
+.wt-serial-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.wt-serial-suffix {
+    font-size: 12px;
+    color: #6b7280;
+    min-width: 100px;
+    text-align: center;
+    user-select: none;
+}
+
+.wt-modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+/* 弹窗内的小尺寸按钮 */
+.wt-btn-sm {
+    height: 30px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    font-weight: 550;
+    border-radius: 8px;
+}
+
+/* ============================================================
+ * 自定义确认弹窗（替换浏览器原生 confirm）
+ * ------------------------------------------------------------
+ * - 居中显示 + 半透明遮罩 + 毛玻璃卡片
+ * - 弹性缓动动画（与系统弹窗保持视觉一致）
+ * - 支持点击遮罩 / ESC / 取消按钮 / 确认按钮 4 种关闭方式
+ * ============================================================ */
+.wt-confirm-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(28, 40, 64, 0.32);
+    backdrop-filter: blur(6px) saturate(140%);
+    -webkit-backdrop-filter: blur(6px) saturate(140%);
+    animation: wt-confirm-mask-in 0.22s ease;
+}
+
+.wt-confirm-mask[hidden] {
+    display: none !important;
+}
+
+@keyframes wt-confirm-mask-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.wt-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 201;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.wt-confirm-modal[hidden] {
+    display: none !important;
+}
+
+.wt-confirm-dialog {
+    pointer-events: auto;
+    width: 340px;
+    max-width: calc(100vw - 28px);
+    padding: 22px 22px 16px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: saturate(180%) blur(28px);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 18px;
+    box-shadow:
+        0 20px 50px rgba(28, 40, 64, 0.22),
+        0 6px 16px rgba(28, 40, 64, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    text-align: center;
+    animation: wt-confirm-spring 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes wt-confirm-spring {
+    0% {
+        opacity: 0;
+        transform: scale(0.92) translateY(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.wt-confirm-icon {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 10px;
+    filter: grayscale(0.2);
+    user-select: none;
+}
+
+.wt-confirm-title {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+}
+
+.wt-confirm-message {
+    margin: 0 0 16px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #4a5568;
+    letter-spacing: 0.01em;
+    text-wrap: pretty;
+}
+
+.wt-confirm-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+/* 危险按钮（用于"确认清空"等不可撤销操作） */
+.wt-btn-danger {
+    color: #ffffff;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.32);
+}
+
+.wt-btn-danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.42);
+}
+
+.wt-btn-danger:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wt-confirm-dialog,
+    .wt-confirm-mask {
+        animation: none !important;
+    }
+}
+
+/* ============================================================
+ * 历史预警机场（扑克牌样式）
+ * ------------------------------------------------------------
+ * 设计：
+ *   - 整个区域与上方预览卡保持视觉协调（卡片圆角 16-20px、间距 16-20px）
+ *   - 每个机场一组，组内多条记录"牌堆"式错位堆叠
+ *   - 单张卡：等级色顶部彩条 + 关键信息排版 + 右上角 × 按钮
+ *   - 弹性缓动：删除时"翻牌飞出"，hover 时整张"浮起 4px + 阴影加深"
+ * ============================================================ */
+.wt-history {
+    margin-top: 28px;
+    padding: 0;
+}
+
+.wt-history-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 0 2px;
+}
+
+.wt-history-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d1d1f;
+    letter-spacing: 0.01em;
+    flex-shrink: 0;
+}
+
+.wt-history-stat {
+    flex: 1;
+    font-size: 12.5px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}
+
+#wt-history-clear-all:not(:disabled) {
+    color: #b91c1c;
+}
+
+#wt-history-clear-all:not(:disabled):hover {
+    background: rgba(185, 28, 28, 0.08);
+    border-color: rgba(185, 28, 28, 0.25);
+}
+
+.wt-history-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+
+/* 机场分组容器 */
+.wt-hg {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* 机场头部（等级色块 + 机场名 + 份数） */
+.wt-hg-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background:
+        linear-gradient(135deg, var(--lv-soft, rgba(156, 163, 175, 0.16)) 0%, rgba(255, 255, 255, 0.5) 100%),
+        var(--lv-soft, rgba(156, 163, 175, 0.08));
+    border-radius: 10px;
+    border: 1.5px solid var(--lv-bg, rgba(0, 0, 0, 0.08));
+    box-shadow: 0 1px 2px var(--lv-strong, rgba(0, 0, 0, 0.06));
+}
+
+.wt-hg-lv {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.wt-hg-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d1d1f;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wt-hg-count {
+    font-size: 11.5px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 6px;
+    border-radius: 5px;
+}
+
+/* 牌堆容器：相对定位，所有卡片都 absolute 堆叠（首张相对定位） */
+.wt-hg-stack {
+    position: relative;
+    min-height: 200px;
+    padding-bottom: 12px;
+}
+
+/* 扑克牌：单条预警卡 */
+.wt-card {
+    position: relative;
+    /* 等级色作为底层渐变 + 半透明白色叠加，保留毛玻璃质感同时突出等级色 */
+    background:
+        linear-gradient(180deg, var(--lv-soft, rgba(255, 255, 255, 0.96)) 0%, rgba(255, 255, 255, 0.78) 60%, rgba(255, 255, 255, 0.65) 100%),
+        linear-gradient(135deg, var(--lv-soft, rgba(255, 255, 255, 0.96)) 0%, transparent 100%),
+        var(--lv-soft, rgba(255, 255, 255, 0.96));
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 2px solid var(--lv-bg, #9ca3af);
+    border-radius: 14px;
+    padding: 14px 14px 10px;
+    box-shadow:
+        0 2px 6px var(--lv-strong, rgba(0, 0, 0, 0.04)),
+        0 8px 20px rgba(0, 0, 0, 0.06),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+    transition:
+        transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.22s ease,
+        opacity 0.28s ease,
+        background-color 0.22s ease;
+    cursor: default;
+    user-select: none;
+}
+
+/* 第一张牌（最上面）默认相对定位 */
+.wt-hg-stack .wt-card:first-child {
+    position: relative;
+    z-index: 4;
+}
+
+/* 第二张以后向右下错位堆叠 */
+.wt-hg-stack .wt-card:not(:first-child) {
+    position: absolute;
+    z-index: 3;
+}
+
+.wt-card:hover {
+    box-shadow:
+        0 6px 14px var(--lv-strong, rgba(0, 0, 0, 0.08)),
+        0 16px 32px var(--lv-strong, rgba(0, 0, 0, 0.10));
+}
+
+.wt-hg-stack .wt-card:first-child:hover {
+    transform: translateY(-4px);
+}
+
+.wt-card-stripe {
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 5px;
+    border-radius: 0 0 5px 5px;
+    background: var(--lv-bg, #9ca3af);
+    box-shadow: 0 1px 4px var(--lv-strong, rgba(0, 0, 0, 0.10));
+}
+
+.wt-card-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background-color: rgba(0, 0, 0, 0.04);
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 180ms ease,
+                background-color 180ms ease,
+                color 180ms ease,
+                transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1);
+    z-index: 5;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+
+.wt-card:hover .wt-card-close,
+.wt-card-close:focus {
+    opacity: 1;
+}
+
+.wt-card-close:hover {
+    background-color: #b91c1c;
+    color: #fff;
+    transform: scale(1.12);
+}
+
+.wt-card-close:active {
+    transform: scale(0.9);
+    background-color: #991b1b;
+    transition: transform 80ms cubic-bezier(0.32, 1.4, 0.5, 1),
+                background-color 80ms ease;
+}
+
+.wt-card-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin: 2px 0 6px;
+    padding-right: 26px; /* 避免被关闭按钮遮挡 */
+}
+
+.wt-card-pub {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.wt-card-pub-date {
+    font-size: 12px;
+    color: #4b5563;
+    font-weight: 500;
+}
+
+.wt-card-pub-time {
+    font-size: 14px;
+    color: #1d1d1f;
+    font-weight: 700;
+}
+
+.wt-card-phenomenon {
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 6px;
+    color: #ffffff;
+    background: var(--lv-bg, #1d1d1f);
+    border: 1px solid var(--lv-bg, #1d1d1f);
+    box-shadow: 0 1px 3px var(--lv-strong, rgba(0, 0, 0, 0.18));
+    white-space: nowrap;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.02em;
+}
+
+.wt-card-forecast {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #1d1d1f;
+    margin: 0 0 8px;
+    min-height: 38px;
+    word-break: break-word;
+}
+
+.wt-card-meta {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.wt-card-tag {
+    font-size: 10.5px;
+    color: #4b5563;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.wt-card-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #9ca3af;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding-top: 6px;
+    margin-top: 4px;
+}
+
+.wt-card-serial {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    color: #6b7280;
+}
+
+.wt-card-stack-idx {
+    font-variant-numeric: tabular-nums;
+}
+
+/* 删除动画：翻牌飞出 */
+.wt-card.is-removing {
+    opacity: 0;
+    transform: translateY(-12px) rotateZ(8deg) scale(0.85);
+    pointer-events: none;
+    transition: all 0.28s cubic-bezier(0.5, 0, 0.75, 0);
+}
+
+/* 空状态 */
+.wt-history-empty {
+    text-align: center;
+    padding: 48px 16px 40px;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    border: 1.5px dashed rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    color: #6b7280;
+}
+
+.wt-history-empty[hidden] {
+    display: none !important;
+}
+
+.wt-history-empty-icon {
+    font-size: 42px;
+    color: rgba(0, 0, 0, 0.18);
+    margin-bottom: 6px;
+    line-height: 1;
+    letter-spacing: 0.4em;
+    user-select: none;
+}
+
+.wt-history-empty-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #4b5563;
+    margin-bottom: 4px;
+}
+
+.wt-history-empty-hint {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* 窄屏：单列 */
+@media (max-width: 720px) {
+    .wt-history-list {
+        grid-template-columns: 1fr;
+    }
+    .wt-hg-stack {
+        min-height: 180px;
+    }
+}
+
+/* ============================================================
+ * Apple Design Language - Reduced Motion 支持
+ * ------------------------------------------------------------
+ * - 当用户开启系统「减少动态效果」时，所有弹性缓动降级为 ease
+ * - 持续时间 ≤ 100ms（仅保留即时反馈，移除 spring 弹性）
+ * - 旋转/缩放/translateY 全部禁用，仅保留 opacity/background 渐变
+ * - 保留功能反馈（hover 高亮、focus 描边、disabled 态）
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    /* 全局：所有 transition / animation 统一降级 */
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 100ms !important;
+        transition-timing-function: ease !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* 按钮按下位移：完全禁用（避免前庭刺激） */
+    .btn,
+    .btn.primary,
+    .btn.danger,
+    .btn.ghost,
+    .btn.small,
+    .tab,
+    .user-pill,
+    .ndr-chip,
+    .ndr-time-add,
+    .ndr-upload-btn,
+    .screenshot-modal__close,
+    .user-modal-close,
+    .wt-card-close,
+    .ndr-playing-card {
+        transition-property: background-color, color, border-color, box-shadow, opacity !important;
+    }
+
+    .btn:hover:not(:disabled),
+    .btn.primary:hover:not(:disabled),
+    .btn.danger:hover:not(:disabled),
+    .tab:hover:not(.active),
+    .user-pill:hover,
+    .ndr-chip:hover,
+    .ndr-time-add:hover:not(.active),
+    .ndr-upload-btn:hover {
+        transform: none !important;
+    }
+
+    .btn:active:not(:disabled),
+    .btn.primary:active:not(:disabled),
+    .btn.danger:active:not(:disabled),
+    .tab:active:not(.active),
+    .user-pill:active,
+    .ndr-chip:active,
+    .ndr-time-add:active,
+    .ndr-upload-btn:active,
+    .screenshot-modal__close:active,
+    .wt-card-close:active,
+    .user-modal-close:active {
+        transform: none !important;
+    }
+
+    /* shine 扫光：完全禁用 */
+    .btn::after,
+    .btn:hover:not(:disabled)::after {
+        display: none !important;
+    }
+
+    /* 弹窗入场：直接显示，无 scale/translate */
+    .screenshot-modal__panel,
+    .user-modal-card,
+    .confirm-modal-card,
+    .wt-modal-dialog,
+    .wt-confirm-dialog,
+    .panel,
+    .ndr-playing-card {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    /* 卡片倾斜（扑克牌样式）：在 reduce-motion 下保持水平 */
+    .ndr-playing-card:nth-child(odd),
+    .ndr-playing-card:nth-child(even),
+    .ndr-playing-card:nth-child(3n),
+    .ndr-playing-card:nth-child(5n) {
+        transform: none !important;
+    }
+
+    /* unsaved 徽标的脉动：降为静态 */
+    .unsaved-badge,
+    .ndr-card-title.editing::after {
+        animation: none !important;
+    }
+
+    /* 删除飞牌动画：降为渐隐 */
+    .wt-card.is-removing {
+        transform: none !important;
+        transition: opacity 100ms ease !important;
+    }
+}
+
+/* ============================================================
+ * 减少透明度偏好（prefers-reduced-transparency）
+ * 适合需要清晰文字的辅助技术用户
+ * ============================================================ */
+@media (prefers-reduced-transparency: reduce) {
+    .glass,
+    .topbar,
+    .card.glass,
+    .log-panel,
+    .screenshot-modal__panel,
+    .user-modal-card,
+    .confirm-modal-card,
+    .ndr-deck,
+    .wt-history-empty,
+    .btn,
+    .user-pill,
+    .tabs,
+    .tab,
+    input, select, textarea {
+        background-color: #ffffff !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+}
+
+/* ============================================================
+ * 高对比度偏好（prefers-contrast: more）
+ * 边框加深、阴影更明显
+ * ============================================================ */
+@media (prefers-contrast: more) {
+    .btn,
+    .tab,
+    .user-pill,
+    .ndr-chip,
+    input,
+    select,
+    textarea {
+        border-width: 1.5px !important;
+    }
+}
+
+/* ============================================================
+ * 日期三按钮组（当日/次日/后日）
+ * ============================================================ */
+.ndr-day-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 12px;
+    padding: 3px;
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    box-shadow: 0 2px 8px rgba(28, 40, 64, 0.08);
+}
+
+.ndr-day-btn,
+.btn.ghost.ndr-day-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #1d1d1f !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    background-color: rgba(255, 255, 255, 0.92) !important;
+    background-image: none !important;
+    border: 1px solid rgba(180, 190, 210, 0.5);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.ndr-day-btn:hover:not(.is-active):not(:disabled),
+.btn.ghost.ndr-day-btn:hover:not(.is-active):not(:disabled) {
+    color: #1d1d1f !important;
+    background: rgba(255, 255, 255, 1) !important;
+    background-color: rgba(255, 255, 255, 1) !important;
+    border-color: rgba(91, 141, 239, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(28, 40, 64, 0.1);
+}
+
+.ndr-day-btn.is-active,
+.btn.ghost.ndr-day-btn.is-active {
+    color: #fff !important;
+    background: linear-gradient(135deg, #3a7bd5, #1f5cb3) !important;
+    background-color: #3a7bd5 !important;
+    background-image: none !important;
+    border-color: rgba(58, 123, 213, 0.6);
+    box-shadow: 0 3px 10px rgba(58, 123, 213, 0.35);
+    font-weight: 600;
+    transform: translateY(-1px);
+}
+
+.ndr-day-btn:disabled,
+.ndr-day-btn.is-disabled,
+.btn.ghost.ndr-day-btn:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    color: #8e8e93 !important;
+    /* 禁用态 - 更明显的视觉区分 */
+    background: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+    border-color: rgba(170, 180, 200, 0.5) !important;
+    border-style: dashed !important;
+    box-shadow: none !important;
+    filter: grayscale(0.4) !important;
+}
+
+/* 历史存档只读模式下强制日期按钮显示为禁用态（覆盖更高优先级的激活态） */
+.ndr-col-left.is-archive-history .ndr-day-btn,
+.ndr-col-left.is-archive-history .btn.ghost.ndr-day-btn,
+.ndr-col-left.is-archive-history .ndr-day-btn.is-active,
+.ndr-col-left.is-archive-history .btn.ghost.ndr-day-btn.is-active {
+    color: #8e8e93 !important;
+    /* 禁用态 - 更明显的视觉区分 */
+    background: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+    border-color: rgba(170, 180, 200, 0.5) !important;
+    border-style: dashed !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    filter: grayscale(0.4) !important;
+}
+
+/* 存档切换器（Tab 形式 - Apple Glass 方案） */
+.ndr-archive-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0 10px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(14px) saturate(1.8);
+    -webkit-backdrop-filter: blur(14px) saturate(1.8);
+    border-radius: 14px;
+    padding: 4px;
+    border: 1px solid rgba(180, 190, 210, 0.35);
+    box-shadow: 0 2px 10px rgba(28, 40, 64, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.ndr-archive-tab,
+.btn.ghost.ndr-archive-tab {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #6e6e73 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background-color 0.3s ease,
+                color 0.25s ease,
+                box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.25s ease,
+                filter 0.25s ease;
+    white-space: nowrap;
+    font-family: inherit;
+    outline: none;
+    letter-spacing: 0.01em;
+}
+
+.ndr-archive-tab:hover:not(.is-active),
+.btn.ghost.ndr-archive-tab:hover:not(.is-active) {
+    color: #1d1d1f !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+    background-color: rgba(255, 255, 255, 0.6) !important;
+    background-image: none !important;
+    transform: scale(1.03);
+}
+
+/* 激活状态 - Apple 深色玻璃胶囊 */
+.ndr-archive-tab.is-active,
+.btn.ghost.ndr-archive-tab.is-active {
+    color: #fff !important;
+    background: linear-gradient(160deg, rgba(20, 30, 55, 0.88) 0%, rgba(45, 60, 90, 0.82) 50%, rgba(65, 85, 120, 0.78) 100%) !important;
+    border: none !important;
+    border-radius: 10px;
+    font-weight: 700;
+    transform: scale(1.04);
+    box-shadow: 0 8px 20px rgba(20, 30, 55, 0.45),
+                0 4px 8px rgba(20, 30, 55, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+                0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
+    backdrop-filter: blur(16px) saturate(1.8);
+    -webkit-backdrop-filter: blur(16px) saturate(1.8);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    letter-spacing: 0.02em;
+}
+
+/* 非激活状态下的玻璃效果 */
+.ndr-archive-tab:not(.is-active) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* 激活状态的聚焦可见性 */
+.ndr-archive-tab.is-active:focus-visible {
+    outline: 2px solid rgba(58, 123, 213, 0.6);
+    outline-offset: 2px;
+}
+
+/* 历史存档只读模式 - 仅保留功能类，不改变背景色 */
+.ndr-col-left.is-archive-history,
+.ndr-col-right.is-archive-history {
+    /* 背景色已移除，保持原有视觉 */
+}
+
+/* 历史存档下卡片样式 - 仅保留边框提示 */
+.ndr-col-left.is-archive-history .card.glass,
+.ndr-col-right.is-archive-history .card.glass {
+    border-color: rgba(180, 180, 180, 0.3);
+    opacity: 0.85;
+}
+
+/* 历史存档下日期按钮组容器 - 不改变背景 */
+.ndr-col-left.is-archive-history .ndr-day-group {
+    border-color: rgba(180, 180, 180, 0.4);
+}
+
+/* 历史存档下存档 Tab 视觉提示 - 不改变背景 */
+.ndr-col-right.is-archive-history .ndr-archive-tabs {
+    border-color: rgba(180, 180, 180, 0.4);
+}
+
+/* ============================================================
+ * 存档切换 Tab · SegmentedControl 分段控件适配
+ * 容器复用 .sgc 组件（滑块/弹性动画由 SegmentedControl 提供），
+ * 但保留原有 Apple 深色玻璃胶囊激活态与毛玻璃容器外观。
+ * ============================================================ */
+
+/* 容器：以 .ndr-archive-tabs 外观为准（比组件默认更大的圆角/留白） */
+.ndr-archive-tabs.sgc {
+    border-radius: 14px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(180, 190, 210, 0.35);
+    box-shadow: 0 2px 10px rgba(28, 40, 64, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(14px) saturate(1.8);
+    backdrop-filter: blur(14px) saturate(1.8);
+}
+
+/* 滑块：覆盖组件默认白色滑块 → 深色玻璃渐变（与激活态一致），保留弹性动画 */
+.ndr-archive-tabs.sgc .sgc-track {
+    top: 4px;
+    left: 4px;
+    bottom: 4px;
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(20, 30, 55, 0.88) 0%, rgba(45, 60, 90, 0.82) 50%, rgba(65, 85, 120, 0.78) 100%);
+    box-shadow: 0 8px 20px rgba(20, 30, 55, 0.45),
+                0 4px 8px rgba(20, 30, 55, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+.ndr-archive-tabs.sgc .sgc-track::after {
+    display: none;
+}
+
+/* 选项：以组件 .sgc-item 为基底，覆盖为无边框透明 + 深灰文字 */
+.ndr-archive-tabs.sgc .sgc-item,
+.ndr-archive-tabs.sgc .ndr-archive-tab {
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    border-radius: 10px;
+    color: #6e6e73 !important;
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    letter-spacing: 0.01em;
+}
+.ndr-archive-tabs.sgc .sgc-item:hover,
+.ndr-archive-tabs.sgc .ndr-archive-tab:hover:not(.is-active) {
+    color: #1d1d1f !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    transform: translateY(0);
+}
+.ndr-archive-tabs.sgc .sgc-item:active {
+    transform: scale(0.95);
+}
+
+/* 激活态：滑块已在选中项下方，文字提亮即可（滑块提供深色底） */
+.ndr-archive-tabs.sgc .sgc-item.sgc-active,
+.ndr-archive-tabs.sgc .ndr-archive-tab.is-active {
+    color: #fff !important;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 10px;
+    box-shadow: none !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    transform: scale(1);
+}
+
+/* 历史存档只读模式下容器边框提示 */
+.ndr-col-right.is-archive-history .ndr-archive-tabs.sgc {
+    border-color: rgba(180, 180, 180, 0.4);
+}
+
+/* ============================================================
+ * 日期选择 Tab · SegmentedControl 分段控件适配（当日/次日/后日）
+ * 容器复用 .sgc 组件，滑块为蓝色（对应原激活态颜色），保留禁用态虚线/灰度。
+ * ============================================================ */
+
+/* 容器：小号紧凑分段，透明蓝调毛玻璃，置于时间输入右侧 */
+.ndr-day-group.sgc {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: 8px;
+    padding: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(120, 128, 142, 0.14) 0%, rgba(120, 128, 142, 0.20) 100%);
+    -webkit-backdrop-filter: saturate(160%) blur(12px);
+    backdrop-filter: saturate(160%) blur(12px);
+    border: 1px solid rgba(180, 190, 210, 0.35);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 1px 3px rgba(28, 40, 64, 0.06);
+}
+
+/* 滑块：蓝色渐变（对应原「次日」品牌蓝激活态），保留组件弹性动画 */
+.ndr-day-group.sgc .sgc-track,
+.ndr-day-group.sgc .ndr-day-track {
+    top: 3px;
+    left: 3px;
+    bottom: 3px;
+    border-radius: 999px;
+    background: linear-gradient(160deg, #2e6fd4 0%, #3a7bd5 55%, #5a9bf2 100%);
+    box-shadow: 0 3px 10px rgba(58, 123, 213, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.ndr-day-group.sgc .sgc-track::after {
+    display: none;
+}
+
+/* 选项：以 .ndr-day-btn 为基底，覆盖为透明胶囊 + 深灰文字；移除 btn ghost 的玻璃背景 */
+.ndr-day-group.sgc .sgc-item,
+.ndr-day-group.sgc .ndr-day-btn {
+    position: relative;
+    z-index: 2;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    border-radius: 999px !important;
+    color: #6e6e73 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    letter-spacing: 0.01em;
+    outline: none;
+    cursor: pointer;
+    transition: color 200ms ease, transform 200ms cubic-bezier(0.32, 1.4, 0.5, 1);
+}
+.ndr-day-group.sgc .sgc-item:hover,
+.ndr-day-group.sgc .ndr-day-btn:hover:not(:disabled) {
+    color: #1d1d1f !important;
+    transform: scale(1.04);
+}
+.ndr-day-group.sgc .sgc-item:active {
+    transform: scale(0.95);
+}
+
+/* 激活态：滑块已在下方，文字白 + 加粗（滑块提供蓝色底） */
+.ndr-day-group.sgc .sgc-item.is-active,
+.ndr-day-group.sgc .sgc-item.sgc-active,
+.ndr-day-group.sgc .ndr-day-btn.is-active {
+    color: #fff !important;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transform: scale(1);
+}
+
+/* 禁用态：历史存档只读模式 - 虚线 + 灰度，覆盖组件默认 */
+.ndr-day-group.sgc .ndr-day-btn:disabled,
+.ndr-day-group.sgc .sgc-item:disabled {
+    color: #8e8e93 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: 1px dashed rgba(170, 180, 200, 0.5) !important;
+    box-shadow: none !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    filter: grayscale(0.4);
+    transform: scale(1);
+}
+
+/* 容器整体禁用：历史存档下日期选择组半透明提示 */
+.ndr-col-left.is-archive-history .ndr-day-group.sgc {
+    opacity: 0.85;
+}
+.ndr-col-left.is-archive-history .ndr-day-group.sgc .sgc-track {
+    background: linear-gradient(160deg, rgba(120, 128, 142, 0.55) 0%, rgba(150, 160, 175, 0.5) 100%);
+    box-shadow: none;
+}
+
+/* ============================================================
+ * 风险卡片水印（修改类型标识）
+ * - 仅历史存档 + 有 modType 的卡片渲染
+ * - 斜向半透明文字，不遮挡卡片主要信息
+ * ============================================================ */
+.ndr-card-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font-size: 48px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 4px;
+    pointer-events: none;
+    user-select: none;
+    z-index: 5;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif;
+}
+
+.ndr-card-watermark-新增 {
+    color: rgba(255, 200, 80, 0.5);
+}
+
+.ndr-card-watermark-升级 {
+    color: rgba(255, 100, 100, 0.55);
+}
+
+.ndr-card-watermark-降级 {
+    color: rgba(120, 180, 255, 0.5);
+}
+
+.ndr-card-watermark-取消 {
+    color: rgba(150, 150, 150, 0.5);
+}
+
+.ndr-card-watermark-修订 {
+    color: rgba(180, 140, 255, 0.5);
+}
+
+/* 取消状态卡片（灰底） */
+.ndr-card.is-canceled {
+    filter: grayscale(0.7) brightness(0.85);
+    opacity: 0.75;
+}
+
+.ndr-card.is-canceled .ndr-card-suit,
+.ndr-card.is-canceled .ndr-card-level-name {
+    color: rgba(200, 200, 200, 0.6) !important;
+}
+
+.ndr-card.is-canceled .ndr-card-forecast {
+    text-decoration: line-through;
+}
+
+/* ============================================================
+ * 顶部时钟（clock-pill）
+ * 位于"气象业务辅助工具"标题右侧，展示日期 + 时:分（静态展示）
+ * ============================================================ */
+.clock-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 4px;
+    padding: 5px 12px 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: linear-gradient(180deg, rgba(214, 231, 252, 0.75), rgba(188, 216, 245, 0.78));
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-radius: 12px;
+    font-family: inherit;
+    color: #1d3557;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        0 2px 8px rgba(28, 40, 64, 0.12);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.clock-icon {
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.clock-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    line-height: 1;
+}
+
+/* ------- 翻页时钟（Flip Clock） ------- */
+.flip-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    perspective: 320px;
+}
+
+.flip-seg {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 25px;
+    background: linear-gradient(180deg, #2f5b8f 0%, #3f76b4 48%, #3a6faa 52%, #2a4f7d 100%);
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: 'SF Mono', ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        inset 0 -1px 0 rgba(20, 40, 70, 0.5),
+        0 1px 3px rgba(20, 40, 70, 0.3);
+    overflow: hidden;
+    transform-origin: center top;
+}
+
+/* 卡片中央的分割线（模拟上下两半） */
+.flip-seg::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    border-top: 1px solid rgba(20, 40, 70, 0.45);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* 值变化时的翻页动画 */
+.flip-seg.flipping {
+    animation: flipSeg 340ms cubic-bezier(0.45, 0.05, 0.55, 0.95);
+}
+
+@keyframes flipSeg {
+    0%   { transform: rotateX(0deg); }
+    50%  { transform: rotateX(-90deg); }
+    100% { transform: rotateX(0deg); }
+}
+
+/* 冒号：随秒闪烁，模拟翻页时钟 */
+.flip-colon {
+    color: #1d3557;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 25px;
+    animation: colonBlink 1s steps(1) infinite;
+}
+
+@keyframes colonBlink {
+    0%, 55%   { opacity: 1; }
+    56%, 100% { opacity: 0.15; }
+}
+
+.clock-date {
+    font-size: 10px;
+    color: rgba(29, 53, 87, 0.72);
+    letter-spacing: 0.4px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * 吉祥物冒泡气泡（mascot-bubble）
+ * 点击顶部左侧图标后出现，随机动物 + 抚慰话语
+ * ============================================================ */
+.mascot-bubble {
+    position: fixed;
+    z-index: 350;
+    max-width: 240px;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+    transform-origin: top left;
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 240ms ease;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.mascot-bubble.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.mascot-bubble-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.mascot-emoji {
+    font-size: 30px;
+    line-height: 1;
+    animation: mascot-wobble 2s ease-in-out infinite;
+    transform-origin: 50% 100%;
+}
+
+.mascot-text {
+    font-size: 13.5px;
+    color: #1d1d1f;
+    line-height: 1.5;
+}
+
+.mascot-bubble-tail {
+    width: 0;
+    height: 0;
+    margin-left: 20px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 9px solid rgba(255, 255, 255, 0.92);
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.06));
+}
+
+@keyframes mascot-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25%      { transform: rotate(-8deg); }
+    75%      { transform: rotate(8deg); }
+}
+
+/* ============================================================
+ * 无障碍降级：prefers-reduced-motion
+ * --------------------------------------------------------------------
+ * 对前庭敏感 / 开启系统「减弱动态效果」的用户，禁用或减弱所有动画与过渡。
+ * 实现策略：
+ *   1. 全局将 transition / animation 时长降至 0.01ms
+ *   2. 停止持续循环的装饰性动画（天气 emoji、吉祥物摇摆、品牌光环、扑克牌旋转）
+ *   3. 移除所有 transform 变换，仅保留 opacity 渐变（避免位移引发眩晕）
+ *   4. 滚动行为恢复为 auto（避免 smooth scroll 引发的长距离平滑滚动）
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* 持续循环动画：直接停止（保留元素，但不再运动） */
+    .tw-item,
+    .mascot-emoji,
+    .brand-mark::before,
+    .brand-mark::after,
+    .ndr-playing-card {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    /* 入场动画：保留 fade-in（opacity 仍安全），去除 transform */
+    .topbar,
+    .panel,
+    .wt-modal,
+    .wt-confirm-modal,
+    .screenshot-modal,
+    .user-modal {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    /* 顶层背景层：移除 filter 与 mix-blend-mode，避免在低端机产生持续重绘 */
+    .bg-layer-1,
+    .bg-layer-2,
+    .bg-layer-3 {
+        filter: none !important;
+        mix-blend-mode: normal !important;
+    }
+}
+
