@@ -21,5 +21,8 @@ desktop.ini
 .cache/
 tmp/
 *.local
-# 本地覆盖配置（含服务端地址与专用密钥，禁止提交）
+# 本地覆盖配置（含服务端地址与专用密钥，默认禁止提交）
 *.local.js
+# 例外：预警上报服务器配置需随 GitHub Pages 一并部署。
+# 注意：站点为公网公开访问，该文件内的 apiKey 会随页面源码公开可见。
+!assets/js/common/server-config.local.js
