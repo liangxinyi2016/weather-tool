@@ -63,6 +63,11 @@
     /** 按钮反馈持续时间 */
     var FLASH_MS = 1500;
 
+    /** 剪贴板写入最大尝试次数（Windows 下失败多为瞬时故障，重试可显著提升成功率） */
+    var CLIPBOARD_MAX_ATTEMPTS = 3;
+    /** 各次重试前的等待时长（毫秒，下标 = 已失败次数；第 1 次不等待） */
+    var CLIPBOARD_RETRY_DELAYS = [0, 200, 500];
+
     /** 标记：是否已记录旧草稿的 warn */
     var oldDraftLogged = false;
 
@@ -890,8 +895,14 @@
                 // 无 html2canvas：跳过截图
                 return Promise.reject({ __skipped: true, message: 'html2canvas 未加载' });
             }
-            return Promise.resolve(html2canvasCapture()).then(function (blob) {
-                handleScreenshotBlob(blob, data);
+            // 先启动 DOM → PNG 渲染（耗时不确定），拿到 Blob 的 Promise
+            var blobPromise = html2canvasCapture();
+            // 关键：此刻仍处于用户点击「确认发布序号」的瞬时激活有效期内，
+            // 先以「延迟渲染」方式发起剪贴板写入（Blob 由上面的 Promise 后续兑现），
+            // 避免渲染耗时超过激活有效期后写入被浏览器拒绝而回退成下载
+            var earlyWrite = startEarlyClipboardWrite(blobPromise);
+            return blobPromise.then(function (blob) {
+                return handleScreenshotBlob(blob, data, earlyWrite);
             });
         }).then(function () {
             // 截图流程结束（成功）：恢复按钮可用
@@ -953,62 +964,175 @@
     }
 
     /**
-     * 处理截图 Blob：优先写入剪贴板，回退为下载
-     * @param {Blob} blob
-     * @param {object} data 表单数据（用于生成文件名）
+     * 是否具备图片剪贴板写入能力
+     * @returns {boolean}
      */
-    function handleScreenshotBlob(blob, data) {
+    function isClipboardImageSupported() {
+        return !!(global.navigator &&
+            global.navigator.clipboard &&
+            typeof global.navigator.clipboard.write === 'function' &&
+            typeof global.ClipboardItem === 'function');
+    }
+
+    /** 延时指定毫秒（用于写入重试的退避等待） */
+    function delay(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    /**
+     * 提前发起剪贴板写入（延迟渲染）
+     * 背景：Chromium 要求 clipboard.write 处于「瞬时用户激活」有效期内调用，
+     *       而 html2canvas 渲染耗时不确定，Windows 慢机上可能超过有效期，
+     *       写入被拒后原逻辑会把 PNG 下载到本地（非预期行为）。
+     * 方案：在激活期内先提交 ClipboardItem，其值用 Promise 占位，
+     *       浏览器会等 Promise 兑现后再落盘，从而不受渲染耗时影响。
+     * @param {Promise<Blob>} blobPromise 渲染生成的 PNG Blob
+     * @returns {Promise<void>|null} 写入结果；环境不支持延迟渲染时返回 null（由调用方走常规写入）
+     */
+    function startEarlyClipboardWrite(blobPromise) {
+        if (!isClipboardImageSupported() || !blobPromise || typeof blobPromise.then !== 'function') {
+            return null;
+        }
+        var writePromise;
+        try {
+            var item = new global.ClipboardItem({ 'image/png': blobPromise });
+            writePromise = global.navigator.clipboard.write([item]);
+        } catch (e) {
+            // 少数环境不支持 Promise 形式的 ClipboardItem：交由常规写入处理
+            logWarn('warning clipboard early write unsupported: ' + (e && e.message));
+            return null;
+        }
+        if (!writePromise || typeof writePromise.then !== 'function') {
+            return null;
+        }
+        // 预挂空 catch：渲染失败时该写入同样失败，先标记已处理避免 unhandled rejection，
+        // 具体回退由调用方按写入结果决定
+        writePromise.catch(function () { /* 由调用方处理 */ });
+        return writePromise;
+    }
+
+    /**
+     * 单次写入剪贴板
+     * 说明：Chromium 要求承载页面处于聚焦状态，Windows 下窗口失焦
+     *       （切换窗口、其他程序抢占焦点）时会被直接拒绝，
+     *       因此写入前先尝试恢复焦点
+     * @param {Blob} blob PNG Blob
+     * @returns {Promise<void>} 失败时 reject 并携带原始原因
+     */
+    function writeBlobOnce(blob) {
+        return new Promise(function (resolve, reject) {
+            if (typeof document.hasFocus === 'function' && !document.hasFocus()) {
+                try { global.focus(); } catch (e) { /* ignore */ }
+            }
+            var item;
+            try {
+                item = new global.ClipboardItem({ 'image/png': blob });
+            } catch (e) {
+                reject(new Error('ClipboardItem 构造失败：' + (e && e.message)));
+                return;
+            }
+            try {
+                global.navigator.clipboard.write([item]).then(resolve, function (err) {
+                    reject(err || new Error('剪贴板写入被拒绝'));
+                });
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    /**
+     * 复制 PNG 到剪贴板（失败自动重试）
+     * @description Windows 下写入失败多为瞬时故障（剪贴板被其他进程短暂占用等），
+     *              退避重试可显著提升成功率；全部失败后由调用方回退为下载
+     * @param {Blob} blob PNG Blob
+     * @returns {Promise<void>} 全部尝试失败时 reject（携带最后一次错误）
+     */
+    function copyPngToClipboard(blob) {
+        var attempt = 0;
+        function run() {
+            return writeBlobOnce(blob).catch(function (err) {
+                if (attempt >= CLIPBOARD_MAX_ATTEMPTS - 1) {
+                    throw err;
+                }
+                // 首次重试立即执行，后续按 CLIPBOARD_RETRY_DELAYS 退避
+                // （attempt 最大为 CLIPBOARD_MAX_ATTEMPTS - 2，下标不会越界）
+                var wait = CLIPBOARD_RETRY_DELAYS[attempt];
+                attempt++;
+                logWarn('warning clipboard write retry #' + attempt + ': ' + (err && err.message));
+                return delay(wait).then(run);
+            });
+        }
+        return run();
+    }
+
+    /**
+     * 剪贴板复制成功后的收尾：写入历史预警记录并刷新卡片区
+     * @description 历史记录仅在复制成功后才入库，避免产生无效记录；
+     *              写入异常只记日志，不影响截图主流程
+     * @param {object} data 表单数据
+     */
+    function addHistoryAfterCopy(data) {
+        try {
+            if (global.WarningRecordExporter &&
+                typeof global.WarningRecordExporter.addRecord === 'function') {
+                var addResult = global.WarningRecordExporter.addRecord(data);
+                if (addResult && addResult.success) {
+                    // 刷新历史预警卡片区
+                    refreshHistory('after-screenshot');
+                    logInfo('warning history added by screenshot: ' +
+                        (addResult.dateStamp || ''));
+                } else {
+                    logWarn('warning history add by screenshot failed: ' +
+                        (addResult && addResult.message));
+                }
+            } else {
+                logWarn('WarningRecordExporter.addRecord unavailable, skip history add');
+            }
+        } catch (histErr) {
+            logWarn('warning history add by screenshot exception', histErr && histErr.message);
+        }
+    }
+
+    /**
+     * 处理截图 Blob：优先写入剪贴板，全部尝试失败后才回退为下载
+     * @param {Blob} blob PNG Blob
+     * @param {object} data 表单数据（用于生成文件名与历史记录）
+     * @param {Promise<void>|null} [earlyWrite] 激活期内提前发起的写入结果（见 startEarlyClipboardWrite）
+     * @returns {Promise<void>}
+     */
+    function handleScreenshotBlob(blob, data, earlyWrite) {
         var btn = elements.btnScreenshot;
         // PNG 文件名沿用「时间+机场+等级+天气现象」格式（例: `2026年7月18日沈阳橙色预警（大风）.png`）
         var name = buildScreenshotFilename(data);
 
-        if (global.navigator && global.navigator.clipboard &&
-            typeof global.ClipboardItem !== 'undefined') {
-            try {
-                global.navigator.clipboard.write([
-                    new global.ClipboardItem({ 'image/png': blob })
-                ]).then(function () {
-                    // 剪贴板写入成功：先提示，再加入历史预警记录
-                    flashButton(btn, '已复制截图');
-                    logInfo('warning screenshot copied');
-                    // 历史记录入库（仅在截图成功复制到剪贴板后才执行）
-                    try {
-                        if (global.WarningRecordExporter &&
-                            typeof global.WarningRecordExporter.addRecord === 'function') {
-                            var addResult = global.WarningRecordExporter.addRecord(data);
-                            if (addResult && addResult.success) {
-                                // 刷新历史预警卡片区
-                                refreshHistory('after-screenshot');
-                                logInfo('warning history added by screenshot: ' +
-                                    (addResult.dateStamp || ''));
-                            } else {
-                                logWarn('warning history add by screenshot failed: ' +
-                                    (addResult && addResult.message));
-                            }
-                        } else {
-                            logWarn('WarningRecordExporter.addRecord unavailable, skip history add');
-                        }
-                    } catch (histErr) {
-                        // 历史写入失败不影响截图主流程
-                        logWarn('warning history add by screenshot exception',
-                            histErr && histErr.message);
-                    }
-                }, function (err) {
-                    // 剪贴板写入失败：回退为下载，不入库历史记录
-                    logWarn('warning clipboard write failed, fallback to download',
-                        err && err.message);
-                    downloadBlob(blob, name);
-                    flashButton(btn, '已下载 PNG');
-                });
-                return;
-            } catch (e) {
-                logWarn('warning clipboard exception, fallback to download', e && e.message);
-            }
+        if (!isClipboardImageSupported()) {
+            // 环境不支持图片剪贴板：回退下载，不入库历史记录
+            downloadBlob(blob, name);
+            flashButton(btn, '已下载 PNG');
+            logInfo('warning screenshot downloaded (no clipboard support)');
+            return Promise.resolve();
         }
-        // 回退：下载 PNG（无剪贴板 API 支持时）；同样不入库历史记录
-        downloadBlob(blob, name);
-        flashButton(btn, '已下载 PNG');
-        logInfo('warning screenshot downloaded (no clipboard support)');
+
+        // 优先复用激活期内提前写入的结果；失败则按当前 Blob 重试写入
+        var copyPromise = (earlyWrite && typeof earlyWrite.then === 'function')
+            ? earlyWrite.catch(function (err) {
+                logWarn('warning clipboard early write failed: ' + (err && err.message));
+                return copyPngToClipboard(blob);
+            })
+            : copyPngToClipboard(blob);
+
+        return copyPromise.then(function () {
+            // 剪贴板写入成功：先提示，再加入历史预警记录
+            flashButton(btn, '已复制截图');
+            logInfo('warning screenshot copied');
+            addHistoryAfterCopy(data);
+        }, function (err) {
+            // 全部尝试失败：回退为下载（不入库历史记录）
+            logWarn('warning clipboard write failed, fallback to download', err && err.message);
+            downloadBlob(blob, name);
+            flashButton(btn, '已下载 PNG');
+        });
     }
 
     /**
