@@ -4,6 +4,7 @@
  * 设计目标
  *   1. 从用户填写的预警内容（data.forecast）中自动解析「发生时段」
  *      - 显式时间段 X-Y（如 14:20-15:00）
+ *      - 跨天时段（如 17:00-次日10:00）：结束时间保留「次日」标记，支持次日/第二天/翌日写法
  *      - X 前 关键词（如 17:00前）
  *      - X 后 关键词（如 15:00后）
  *      - 多时段合并：第一个开始 - 最后一个结束
@@ -82,6 +83,15 @@
     /** 文件名前缀 */
     var FILENAME_PREFIX = '气象预警记录表';
 
+    /**
+     * 跨天标记词：结束时间落在次日时用户可能书写的写法（次日 / 第二天 / 翌日）
+     * 例：17:00-次日10:00、05:00到第二天02:00
+     */
+    var NEXT_DAY_MARKER = '(?:次日|第二天|翌日)';
+
+    /** 跨天标记的规范输出文本（解析结果统一按「次日」输出，与气象简报截图跨天写法一致） */
+    var NEXT_DAY_TEXT = '次日';
+
     /* ============================================================
      * 时间解析
      * ============================================================ */
@@ -123,7 +133,7 @@
      *   3) X 后 关键词（仅作为开始时间的参考；不形成完整时段）
      * @param {string} forecast 预警内容文本
      * @returns {{
-     *   explicitRanges: Array<{start:string,end:string}>,
+     *   explicitRanges: Array<{start:string,end:string,endNextDay:boolean}>,
      *   beforeTimes: string[],
      *   afterTimes: string[]
      * }}
@@ -141,11 +151,20 @@
         normalized = normalizeTimeFormats(normalized);
 
         // 1. 显式时间段 X-Y（X 和 Y 都是 HH:MM，分隔符: - — ~ 到 至）
-        // 例: 14:20-15:00 / 21:00 - 24:00 / 14:20到15:00
-        var rangeRe = /(\d{1,2}:\d{2})\s*[-—~到至]\s*(\d{1,2}:\d{2})/g;
+        //    结束时间可带跨天标记（次日 / 第二天 / 翌日），用于跨零点时段
+        // 例: 14:20-15:00 / 21:00 - 24:00 / 14:20到15:00 / 17:00-次日10:00
+        var rangeRe = new RegExp(
+            '(\\d{1,2}:\\d{2})\\s*[-—~到至]\\s*(' + NEXT_DAY_MARKER + ')?\\s*(\\d{1,2}:\\d{2})',
+            'g'
+        );
         var match;
         while ((match = rangeRe.exec(normalized)) !== null) {
-            result.explicitRanges.push({ start: match[1], end: match[2] });
+            result.explicitRanges.push({
+                start: match[1],
+                end: match[3],
+                // 结束时间是否标注跨天（次日 / 第二天 / 翌日）
+                endNextDay: !!match[2]
+            });
         }
 
         // 2. X 前 关键词（X 是 HH:MM，且后面没有数字，避免误匹配「前 2 小时」之类）
@@ -165,16 +184,28 @@
     }
 
     /**
+     * 拼接单个时段的展示文本
+     * @description 跨天时段（结束时间标注次日）输出为「开始-次日结束」，
+     *              与气象简报机场预警截图的跨天写法保持一致，便于人工核对
+     * @param {{start: string, end: string, endNextDay?: boolean}} range 时间范围
+     * @returns {string} 形如 "14:20-15:00" 或 "17:00-次日10:00"
+     */
+    function formatRangeText(range) {
+        return range.start + '-' + (range.endNextDay ? NEXT_DAY_TEXT : '') + range.end;
+    }
+
+    /**
      * 解析「发生时段」
      * 规则：
      *   1. 有 ≥1 个显式时间段 → 多段合并（第一个开始 - 最后一个结束）；单段直接用
+     *      结束时间带跨天标记时保留标记，输出「开始-次日结束」（如 17:00-次日10:00）
      *   2. 无显式时间段但有 X 前 → 发布时间HH:MM - X
      *   3. 无显式时间段但有 X 后 → 发布时间HH:MM - X (X 是参考结束时间)
      *      说明：X 后 表示 X 是开始，但若无 X 前，则退化为「发布时间 - X」
      *   4. 都无 → 空字符串
      * @param {string} forecast 预警内容
      * @param {string} publishHHMM 发布时间 HH:MM（形如 "11:45"）
-     * @returns {string} 发生时段，形如 "14:20-15:00"；无法解析返回 ''
+     * @returns {string} 发生时段，形如 "14:20-15:00"；跨天为 "17:00-次日10:00"；无法解析返回 ''
      */
     function parsePeriod(forecast, publishHHMM) {
         var patterns = extractTimePatterns(forecast);
@@ -190,12 +221,15 @@
             if (validRanges.length === 0) {
                 // 显式段全无效，尝试 X 前
             } else if (validRanges.length === 1) {
-                return validRanges[0].start + '-' + validRanges[0].end;
+                return formatRangeText(validRanges[0]);
             } else {
-                // 多段：第一个开始 - 最后一个结束
-                var firstStart = validRanges[0].start;
-                var lastEnd = validRanges[validRanges.length - 1].end;
-                return firstStart + '-' + lastEnd;
+                // 多段：第一个开始 - 最后一个结束（跨天标记沿用最后一段的结束）
+                var lastRange = validRanges[validRanges.length - 1];
+                return formatRangeText({
+                    start: validRanges[0].start,
+                    end: lastRange.end,
+                    endNextDay: lastRange.endNextDay
+                });
             }
         }
 
@@ -229,18 +263,19 @@
 
     /**
      * 计算预报时长（小时）
-     * @param {string} period 发生时段，形如 "14:20-15:00"
+     * @param {string} period 发生时段，形如 "14:20-15:00"；跨天形如 "17:00-次日10:00"
      * @returns {number|null} 小时数；非法输入返回 null
      */
     function computeDurationHours(period) {
         if (!period || typeof period !== 'string') return null;
-        var m = String(period).match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/);
+        // 结束时间允许带跨天标记「次日」（parsePeriod 的跨天输出）
+        var m = String(period).match(/^(\d{1,2}:\d{2})\s*-\s*(次日)?\s*(\d{1,2}:\d{2})$/);
         if (!m) return null;
         var startMin = parseHHMMToMinutes(m[1]);
-        var endMin = parseHHMMToMinutes(m[2]);
+        var endMin = parseHHMMToMinutes(m[3]);
         if (startMin == null || endMin == null) return null;
-        // 跨日：结束 ≤ 开始时自动 +24h（即 1440 分钟）
-        if (endMin <= startMin) {
+        // 跨日：显式标注「次日」，或结束 ≤ 开始时（隐含跨零点），均 +24h（即 1440 分钟）
+        if (m[2] || endMin <= startMin) {
             endMin += 24 * 60;
         }
         return (endMin - startMin) / 60;
