@@ -8,6 +8,9 @@
  *      - X 前 关键词（如 17:00前）
  *      - X 后 关键词（如 15:00后）
  *      - 多时段合并：第一个开始 - 最后一个结束
+ *      - 括号内的辅助说明整体剔除，其中的时刻不作为时段依据
+ *        （如「局地短时零星雷暴（概率30%-50%，主要考虑在15-19时）」，
+ *          括号里的 15-19 时属于补充描述，不参与解析，避免覆盖真实时段）
  *      - 兜底：发布时间 HH:MM
  *   2. 自动计算「预报时长」：结束HH:MM - 开始HH:MM，跨日 +24h
  *      表格列标题为「预报时长(h)」承担单位语义，单元格内只填纯数字（如 5.3、3）
@@ -92,6 +95,15 @@
     /** 跨天标记的规范输出文本（解析结果统一按「次日」输出，与气象简报截图跨天写法一致） */
     var NEXT_DAY_TEXT = '次日';
 
+    /**
+     * 括号类型对照（用于剔除括号内的辅助说明内容）
+     * 仅处理圆括号：全角 `（）` 与半角 `()`，二者在预警内容中最为常见
+     */
+    var PAREN_PATTERNS = [
+        /（[^（）]*）/g,   // 全角圆括号
+        /\([^()]*\)/g     // 半角圆括号
+    ];
+
     /* ============================================================
      * 时间解析
      * ============================================================ */
@@ -126,11 +138,34 @@
     function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
     /**
+     * 剔除括号内的辅助说明内容
+     * @description 预警内容中括号部分通常为概率、参考时段等补充描述，
+     *              其中的时刻不代表预警实际发生时段。若不剔除，会被下游
+     *              时间正则当成显式时段，导致解析结果错误。
+     *              例：「局地短时零星雷暴（概率30%-50%，主要考虑在15-19时）」
+     *                  → 剔除后为「局地短时零星雷暴」，不会解析出 15:00-19:00。
+     *              说明：仅用于解析入参，不改动入库 / 导出的预警内容原文；
+     *                    未闭合的括号不匹配、按原文保留，避免误删正文。
+     * @param {string} text 预警内容文本
+     * @returns {string} 剔除括号内容后的文本；非字符串输入按原值返回
+     */
+    function stripParenthetical(text) {
+        if (text == null || typeof text !== 'string') return text;
+        var result = text;
+        for (var i = 0; i < PAREN_PATTERNS.length; i++) {
+            result = result.replace(PAREN_PATTERNS[i], '');
+        }
+        return result;
+    }
+
+    /**
      * 从预警内容中提取所有「显式时间段 X-Y」和「X 前」「X 后」关键词
      * 优先顺序：
      *   1) 显式时间段 X-Y（含 — ~ 到 至 等分隔符）
      *   2) X 前 关键词（作为结束时间）
      *   3) X 后 关键词（仅作为开始时间的参考；不形成完整时段）
+     * 括号处理：括号内的辅助说明（概率、参考时段等）在解析前整体剔除，
+     *          其中的时刻不作为时段依据，避免覆盖真实的「X 前 / X 后」时段
      * @param {string} forecast 预警内容文本
      * @returns {{
      *   explicitRanges: Array<{start:string,end:string,endNextDay:boolean}>,
@@ -143,11 +178,13 @@
         if (!forecast || typeof forecast !== 'string') return result;
 
         // 入口规范化（按顺序执行，后一步基于前一步结果）：
+        //   0) 剔除括号内的辅助说明：避免其中「主要考虑在15-19时」等参考时段被误认为真实时段
         //   1) 标点规范化：全角标点 → 半角标点
         //      解决 Word 复制粘贴场景中 `14：20-15：00`、`14:00-15:00、15:00-16:00` 等无法解析的问题
         //   2) 时间格式规范化：`1500` / `15时` / `15时30分` → `15:00` / `15:30`
         //      保证下游 rangeRe / beforeRe / afterRe 只看到统一的 HH:MM 写法
-        var normalized = normalizePunctuation(forecast);
+        var normalized = stripParenthetical(forecast);
+        normalized = normalizePunctuation(normalized);
         normalized = normalizeTimeFormats(normalized);
 
         // 1. 显式时间段 X-Y（X 和 Y 都是 HH:MM，分隔符: - — ~ 到 至）
