@@ -7,7 +7,10 @@
  *      - 跨天时段（如 17:00-次日10:00）：结束时间保留「次日」标记，支持次日/第二天/翌日写法
  *      - X 前 关键词（如 17:00前）
  *      - X 后 关键词（如 15:00后）
- *      - 多时段合并：第一个开始 - 最后一个结束
+ *      - 时段首尾拼接：显式段与「X 前」段按书写顺序排列，
+ *        取第一个片段的开始 - 最后一个片段的结束
+ *        （「X 前」段无显式开始，取发布时间兜底。例：「22:00前有小阵雨，
+ *          22:00-24:00短时有中阵雨」，发布 20:30 → 20:30-24:00）
  *      - 括号内的辅助说明整体剔除，其中的时刻不作为时段依据
  *        （如「局地短时零星雷暴（概率30%-50%，主要考虑在15-19时）」，
  *          括号里的 15-19 时属于补充描述，不参与解析，避免覆盖真实时段）
@@ -166,15 +169,19 @@
      *   3) X 后 关键词（仅作为开始时间的参考；不形成完整时段）
      * 括号处理：括号内的辅助说明（概率、参考时段等）在解析前整体剔除，
      *          其中的时刻不作为时段依据，避免覆盖真实的「X 前 / X 后」时段
+     * 位置信息：每个片段记录其在规范化文本中的书写位置（index），
+     *          供 parsePeriod 按原文顺序做「首尾拼接」
      * @param {string} forecast 预警内容文本
      * @returns {{
-     *   explicitRanges: Array<{start:string,end:string,endNextDay:boolean}>,
+     *   explicitRanges: Array<{start:string,end:string,endNextDay:boolean,index:number}>,
      *   beforeTimes: string[],
+     *   beforeIndexes: number[],
      *   afterTimes: string[]
      * }}
+     *   其中 beforeIndexes 与 beforeTimes 一一对应，为「X 前」的书写位置
      */
     function extractTimePatterns(forecast) {
-        var result = { explicitRanges: [], beforeTimes: [], afterTimes: [] };
+        var result = { explicitRanges: [], beforeTimes: [], beforeIndexes: [], afterTimes: [] };
         if (!forecast || typeof forecast !== 'string') return result;
 
         // 入口规范化（按顺序执行，后一步基于前一步结果）：
@@ -200,7 +207,9 @@
                 start: match[1],
                 end: match[3],
                 // 结束时间是否标注跨天（次日 / 第二天 / 翌日）
-                endNextDay: !!match[2]
+                endNextDay: !!match[2],
+                // 在规范化文本中的书写位置（用于按原文顺序首尾拼接）
+                index: match.index
             });
         }
 
@@ -209,6 +218,8 @@
         var beforeRe = /(\d{1,2}:\d{2})\s*前(?!\s*\d)/g;
         while ((match = beforeRe.exec(normalized)) !== null) {
             result.beforeTimes.push(match[1]);
+            // 与 beforeTimes 一一对应的书写位置
+            result.beforeIndexes.push(match.index);
         }
 
         // 3. X 后 关键词
@@ -234,12 +245,17 @@
     /**
      * 解析「发生时段」
      * 规则：
-     *   1. 有 ≥1 个显式时间段 → 多段合并（第一个开始 - 最后一个结束）；单段直接用
-     *      结束时间带跨天标记时保留标记，输出「开始-次日结束」（如 17:00-次日10:00）
-     *   2. 无显式时间段但有 X 前 → 发布时间HH:MM - X
-     *   3. 无显式时间段但有 X 后 → 发布时间HH:MM - X (X 是参考结束时间)
-     *      说明：X 后 表示 X 是开始，但若无 X 前，则退化为「发布时间 - X」
-     *   4. 都无 → 空字符串
+     *   1. 时段片段首尾拼接：把显式时间段 X-Y 与「X 前」片段按书写顺序排列，
+     *      取第一个片段的开始 - 最后一个片段的结束
+     *      - 显式时间段：开始 = X，结束 = Y（Y 带跨天标记时保留标记）
+     *      - 「X 前」片段：开始无显式值，按业务口径取发布时间兜底；结束 = X
+     *   2. 仅「X 后」关键词（无显式时间段、无 X 前 时生效）→ 发布时间HH:MM - X
+     *      说明：X 后 表示 X 是开始，但无结束时间，退化为「发布时间 - X」
+     *   3. 都无法解析 → 空字符串
+     * 示例：
+     *   "预计17:00前有雷暴"                发布 11:45 → 11:45-17:00
+     *   "22:00前有阵雨，22:00-24:00有雷暴"  发布 20:30 → 20:30-24:00
+     *   "17:00-次日10:00大雾"              发布 16:30 → 17:00-次日10:00
      * @param {string} forecast 预警内容
      * @param {string} publishHHMM 发布时间 HH:MM（形如 "11:45"）
      * @returns {string} 发生时段，形如 "14:20-15:00"；跨天为 "17:00-次日10:00"；无法解析返回 ''
@@ -248,49 +264,57 @@
         var patterns = extractTimePatterns(forecast);
         var pubMin = parseHHMMToMinutes(publishHHMM);
 
-        // 规则 1: 显式时间段（可能有多个）
-        if (patterns.explicitRanges.length > 0) {
-            var ranges = patterns.explicitRanges;
-            // 过滤掉开始/结束无效的段
-            var validRanges = ranges.filter(function (r) {
-                return parseHHMMToMinutes(r.start) != null && parseHHMMToMinutes(r.end) != null;
-            });
-            if (validRanges.length === 0) {
-                // 显式段全无效，尝试 X 前
-            } else if (validRanges.length === 1) {
-                return formatRangeText(validRanges[0]);
-            } else {
-                // 多段：第一个开始 - 最后一个结束（跨天标记沿用最后一段的结束）
-                var lastRange = validRanges[validRanges.length - 1];
-                return formatRangeText({
-                    start: validRanges[0].start,
-                    end: lastRange.end,
-                    endNextDay: lastRange.endNextDay
+        // 「X 前」片段的开始时间无显式值：优先取发布时间兜底，
+        // 发布时间不可用时回退到第一个「X 后」的 X（沿用原兜底逻辑）
+        var fallbackStart = (pubMin != null && publishHHMM) ? publishHHMM : '';
+        if (!fallbackStart && patterns.afterTimes.length > 0 &&
+            parseHHMMToMinutes(patterns.afterTimes[0]) != null) {
+            fallbackStart = patterns.afterTimes[0];
+        }
+
+        // 汇总所有时段片段（含书写位置 at，用于按原文顺序做首尾拼接）
+        var segments = [];
+        var i, r;
+        for (i = 0; i < patterns.explicitRanges.length; i++) {
+            r = patterns.explicitRanges[i];
+            // 跳过开始 / 结束无效的段
+            if (parseHHMMToMinutes(r.start) == null || parseHHMMToMinutes(r.end) == null) continue;
+            segments.push({ at: r.index, start: r.start, end: r.end, endNextDay: r.endNextDay });
+        }
+        // 「X 前」片段仅在开始时间可确定时才纳入拼接（否则无法构成完整时段）
+        if (fallbackStart) {
+            for (i = 0; i < patterns.beforeTimes.length; i++) {
+                if (parseHHMMToMinutes(patterns.beforeTimes[i]) == null) continue;
+                segments.push({
+                    at: patterns.beforeIndexes[i],
+                    start: fallbackStart,
+                    end: patterns.beforeTimes[i],
+                    endNextDay: false
                 });
             }
         }
 
-        // 规则 2: X 前 关键词（无显式段时生效）
-        if (patterns.beforeTimes.length > 0) {
-            // 多个 X 前：取最后一个（通常是最近期的截止时间）
-            var beforeEnd = patterns.beforeTimes[patterns.beforeTimes.length - 1];
-            // 开始时间：发布时间（HH:MM）
-            var startByPub = publishHHMM || patterns.afterTimes[0] || '';
-            if (startByPub && parseHHMMToMinutes(startByPub) != null) {
-                return startByPub + '-' + beforeEnd;
-            }
+        // 规则 1: 片段首尾拼接（第一个片段的开始 - 最后一个片段的结束）
+        if (segments.length > 0) {
+            segments.sort(function (a, b) { return a.at - b.at; });
+            var first = segments[0];
+            var last = segments[segments.length - 1];
+            if (segments.length === 1) return formatRangeText(first);
+            // 跨天标记沿用最后一个片段的结束
+            return formatRangeText({
+                start: first.start,
+                end: last.end,
+                endNextDay: last.endNextDay
+            });
         }
 
-        // 规则 3: X 后 关键词（无显式段、无 X 前时生效）
-        // X 后 的 X 是开始时间；如果发布时间可解析，作为「开始 - X」（退化为短时段）
-        if (patterns.afterTimes.length > 0) {
-            // 这里采用保守策略：仅在有发布时间时输出「发布时间-X」，提示用户注意
-            if (pubMin != null && publishHHMM) {
-                return publishHHMM + '-' + patterns.afterTimes[0];
-            }
+        // 规则 2: 仅「X 后」关键词（无显式段、无 X 前 时生效）
+        // 这里采用保守策略：仅在有发布时间时输出「发布时间-X」，提示用户注意
+        if (patterns.afterTimes.length > 0 && pubMin != null && publishHHMM) {
+            return publishHHMM + '-' + patterns.afterTimes[0];
         }
 
-        // 规则 4: 无法解析
+        // 规则 3: 无法解析
         return '';
     }
 
