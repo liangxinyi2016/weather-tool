@@ -1374,6 +1374,7 @@
     /**
      * 上报机场预警信息到自建服务器（供其他软件读取）
      * - 调用方不等待结果：尽力而为，失败只影响服务端数据，不影响本地截图与历史记录
+     * - 上报失败 / 未配置时弹出 Apple 风格 Toast，避免静默丢数据（此前仅写日志，用户无感知）
      * - 模块未加载（server-config.local.js 缺失等）时静默跳过，由 pusher 内部记一次 warn 日志
      * - 兜底捕获同步异常，确保 pushWarning 抛错也不会中断截图主流程
      * @param {object} data 预警表单数据
@@ -1382,14 +1383,42 @@
         try {
             if (!global.WarningReportPusher || typeof global.WarningReportPusher.pushWarning !== 'function') {
                 logWarn('WarningReportPusher not loaded, skip server push');
+                notifyPushFailure('服务器上报模块未加载，预警信息未上报', 'warn');
                 return;
             }
             // 返回的 Promise 在 pusher 内部已做全量兜底，这里再挂一次 catch 防止未处理拒绝
-            global.WarningReportPusher.pushWarning(data).catch(function (e) {
+            global.WarningReportPusher.pushWarning(data).then(function (result) {
+                if (!result || result.ok) return;
+                if (result.skipped) {
+                    // 未配置服务器地址 / 密钥
+                    notifyPushFailure('未配置服务器地址或密钥，预警信息未上报', 'warn');
+                } else {
+                    notifyPushFailure('预警信息上报失败，请检查网络后重试', 'error');
+                }
+            }).catch(function (e) {
                 logWarn('warning report push unhandled', e && e.message);
+                notifyPushFailure('预警信息上报失败，请检查网络后重试', 'error');
             });
         } catch (e) {
             logWarn('warning report push exception', e && e.message);
+            notifyPushFailure('预警信息上报失败，请检查网络后重试', 'error');
+        }
+    }
+
+    /**
+     * 上报失败的可视化提示（Apple 风格 Toast）
+     * - Toast 组件缺失时静默降级（仅日志），绝不影响截图与历史记录主流程
+     * @param {string} message 提示文案
+     * @param {string} type Toast 类型：warn / error
+     * @returns {void}
+     */
+    function notifyPushFailure(message, type) {
+        try {
+            if (global.Toast && typeof global.Toast.show === 'function') {
+                global.Toast.show(message, type);
+            }
+        } catch (e) {
+            logWarn('warning push toast failed', e && e.message);
         }
     }
 

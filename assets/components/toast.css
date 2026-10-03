@@ -1,0 +1,102 @@
+/* ============================================================
+ * Toast · Apple 风格轻提示（组件）
+ * --------------------------------------------------------------------
+ * 设计语言：毛玻璃 / 大圆角 / 多层半透明 / 弹性缓动 / 微交互
+ * 依赖：无（纯 CSS）
+ *
+ * 用法：由 toast.js 动态创建，调用方无需手写 HTML
+ *   Toast.show('已复制到剪贴板');
+ *   Toast.show('预警信息上报失败', 'error');
+ *
+ * 结构：
+ *   .mt-toast-host               顶部居中容器（固定定位、不拦截鼠标）
+ *     └ .mt-toast.mt-toast--xxx  单条提示（xxx = info/success/warn/error）
+ * ============================================================ */
+
+.mt-toast-host {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.mt-toast {
+    min-width: 180px;
+    max-width: min(78vw, 520px);
+    padding: 12px 20px;
+    border-radius: 16px;
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+    word-break: break-word;
+    color: #1c1c1e;
+    /* 毛玻璃：多层半透明渐变 + 背景模糊 */
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.78) 100%);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+        0 10px 30px rgba(28, 40, 64, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    /* 入场：轻微下移 + 微缩放，弹性缓动回弹 */
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+    transition:
+        opacity 0.24s ease,
+        transform 0.34s cubic-bezier(0.32, 1.4, 0.5, 1);
+}
+
+/* 可见态 */
+.mt-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* 离场态：略快、无回弹，避免拖沓 */
+.mt-toast.is-leaving {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+    transition-duration: 0.2s;
+    transition-timing-function: ease;
+}
+
+/* ---------- 语义变体：淡色底 + 深色字，保证对比度 ---------- */
+
+/* 成功：淡绿底 + 深绿字 */
+.mt-toast--success {
+    background: linear-gradient(180deg, rgba(232, 250, 237, 0.94) 0%, rgba(219, 245, 227, 0.86) 100%);
+    border-color: rgba(52, 199, 89, 0.38);
+    color: #1b6b35;
+}
+
+/* 警告：淡橙底 + 深橙字 */
+.mt-toast--warn {
+    background: linear-gradient(180deg, rgba(255, 246, 224, 0.94) 0%, rgba(255, 238, 205, 0.86) 100%);
+    border-color: rgba(255, 149, 0, 0.38);
+    color: #8a4b00;
+}
+
+/* 错误：淡红底 + 深红字 */
+.mt-toast--error {
+    background: linear-gradient(180deg, rgba(255, 235, 235, 0.94) 0%, rgba(255, 224, 224, 0.86) 100%);
+    border-color: rgba(255, 59, 48, 0.38);
+    color: #a1120b;
+}
+
+/* 信息：默认白玻璃（.mt-toast 基础样式已覆盖） */
+
+/* 无障碍：用户偏好减少动效时去掉过渡 */
+@media (prefers-reduced-motion: reduce) {
+    .mt-toast,
+    .mt-toast.is-visible,
+    .mt-toast.is-leaving {
+        transition: none;
+    }
+}
