@@ -4,8 +4,8 @@
  * 本文件集中存放「机场中文名 / ICAO 四字码 / IATA 三字码」之间的映射关系，
  * 供 airports.js 及其他模块统一读取。如需新增、改名或修正机场，只需修改本文件。
  *
- * 数据来源："#/C0039机场列表.xlsx"
- *   - 共 128 个机场（国内 100 + 国际/地区 28）
+ * 数据来源："#/C0039_批准定期运行机场.xlsx"
+ *   - 共 131 个机场（国内 100 + 国际/地区 31）
  *   - 字段：city（中文标准名）/ icao（4 字母 ICAO）/ iata（3 字母 IATA）
  *
  * 维护说明：
@@ -33,7 +33,7 @@
         { city: '唐山', icao: 'ZBSN', iata: 'TVS' },
         { city: '天津', icao: 'ZBTJ', iata: 'TSN' },
         { city: '通辽', icao: 'ZBTL', iata: 'TGO' },
-        { city: '忻州', icao: 'ZBXZ', iata: 'WUT' },
+        { city: '五台山', icao: 'ZBXZ', iata: 'WUT' },
         { city: '太原', icao: 'ZBYN', iata: 'TYN' },
         // ====== ZG 华南区 ======
         { city: '北海', icao: 'ZGBH', iata: 'BHY' },
@@ -54,13 +54,15 @@
         { city: '襄阳', icao: 'ZHXF', iata: 'XFN' },
         { city: '宜昌', icao: 'ZHYC', iata: 'YIH' },
         { city: '海口', icao: 'ZJHK', iata: 'HAK' },
-        { city: '琼海', icao: 'ZJQH', iata: 'BAR' },
+        { city: '博鳌', icao: 'ZJQH', iata: 'BAR' },
         { city: '三亚', icao: 'ZJSY', iata: 'SYX' },
         { city: '郴州', icao: 'ZGCZ', iata: 'HCZ' },
         { city: '惠州', icao: 'ZGHZ', iata: 'HUZ' },
-        { city: '湘西', icao: 'ZGXX', iata: 'DXJ' },
+        { city: '边城', icao: 'ZGXX', iata: 'DXJ' },
+        { city: '柳州', icao: 'ZGZH', iata: 'LZH' },
         { city: '湛江', icao: 'ZGZJ', iata: 'ZHA' },
         { city: '安阳', icao: 'ZHQQ', iata: 'HQQ' },
+        { city: '十堰', icao: 'ZHSY', iata: 'WDS' },
         // ====== ZL 西北区 ======
         { city: '敦煌', icao: 'ZLDH', iata: 'DNH' },
         { city: '银川', icao: 'ZLIC', iata: 'INC' },
@@ -78,7 +80,6 @@
         { city: '昆明', icao: 'ZPPP', iata: 'KMG' },
         { city: '腾冲', icao: 'ZPTC', iata: 'TCZ' },
         { city: '文山', icao: 'ZPWS', iata: 'WNH' },
-        { city: '昭通', icao: 'ZPZT', iata: 'ZAT' },
         // ====== ZS 华东区 ======
         { city: '厦门', icao: 'ZSAM', iata: 'XMN' },
         { city: '常州', icao: 'ZSCG', iata: 'CZX' },
@@ -108,10 +109,12 @@
         { city: '巴中', icao: 'ZUBZ', iata: 'BZX' },
         { city: '重庆', icao: 'ZUCK', iata: 'CKG' },
         { city: '贵阳', icao: 'ZUGY', iata: 'KWE' },
+        { city: '凯里', icao: 'ZUKJ', iata: 'KJH' },
         { city: '绵阳', icao: 'ZUMY', iata: 'MIG' },
         { city: '天府', icao: 'ZUTF', iata: 'TFU' },
         { city: '铜仁', icao: 'ZUTR', iata: 'TEN' },
         { city: '万州', icao: 'ZUWX', iata: 'WXN' },
+        { city: '宜宾', icao: 'ZUYB', iata: 'YBP' },
         { city: '遵义', icao: 'ZUZY', iata: 'ZYI' },
         { city: '双流', icao: 'ZUUU', iata: 'CTU' },
         // ====== ZW 新疆区 ======
@@ -138,8 +141,8 @@
         { city: '顺化', icao: 'VVPB', iata: 'HUI' },
         { city: '富国岛', icao: 'VVPQ', iata: 'PQC' },
         // ====== VT 泰国 ======
-        { city: '曼谷', icao: 'VTBD', iata: 'DMK' },
-        { city: '曼谷素万那普', icao: 'VTBS', iata: 'BKK' },
+        { city: '廊曼', icao: 'VTBD', iata: 'DMK' },
+        { city: '素旺那普', icao: 'VTBS', iata: 'BKK' },
         { city: '清迈', icao: 'VTCC', iata: 'CNX' },
         { city: '清莱', icao: 'VTCT', iata: 'CEI' },
         // ====== VY 缅甸 ======
@@ -147,8 +150,8 @@
         { city: '内比都', icao: 'VYNT', iata: 'NYT' },
         { city: '仰光', icao: 'VYYY', iata: 'RGN' },
         // ====== RK 韩国 ======
-        { city: '光州', icao: 'RKJB', iata: 'MWX' },
-        { city: '首尔', icao: 'RKSI', iata: 'ICN' },
+        { city: '务安', icao: 'RKJB', iata: 'MWX' },
+        { city: '首尔仁川', icao: 'RKSI', iata: 'ICN' },
         { city: '大邱', icao: 'RKTN', iata: 'TAE' },
         { city: '清州', icao: 'RKTU', iata: 'CJJ' },
         // ====== RJ 日本 ======
@@ -173,17 +176,28 @@
      * 例如：动态表格里边使用的是"呼伦贝尔"，用户输入时可能会使用"海拉尔"，导致查询结果不一致
      * ============================================================ */
     var NAME_TO_ICAO = {
-        '呼伦贝尔': 'ZBLA',   // 模板别名：C0039 标准名"呼伦贝尔"
-        '霍林郭勒': 'ZBHZ', // 航班文件别名：全称，与"霍林河"同 ICAO
-        '呼和': 'ZBHH',     // 航班文件别名：简称，与"呼和浩特"同 ICAO
-        '芒市': 'ZPMS',     // 模板别名：C0039 标准名"德宏"
-        '成都': 'ZUTF',     // 模板/C0039 别名：标准名"成都"
-        '胡志明': 'VVTS',   // 模板别名：C0039 标准名"胡志明市"
-        '东京': 'RJAA',      // 通用别名：标准名"东京成田"
-        '德宏': 'ZPMS',      // 通用别名：标准名"德宏"
-        // 以下为大风沙尘结冰通报模板专用别名（模板中文名与 C0039 标准名不一致时使用）
-        '五台山': 'ZBXZ',   // 模板中文名"五台山"对应 ICAO ZBXZ（C0039 标准名"忻州"）
-        '成都天府': 'ZUTF'  // 模板中文名"成都天府"对应 ICAO ZUTF（C0039 标准名"天府"）
+        // ====== 模板/通用别名（模板中文名与 C0039 批准名单不一致时使用） ======
+        '湘西': 'ZGXX',       // 大风沙尘结冰模板中文名"湘西"（C0039 批准名单标准名"边城"）
+        '成都天府': 'ZUTF',   // 模板中文名"成都天府"（C0039 批准名单标准名"天府"）
+        // ====== 航班文件/用户输入别名 ======
+        '呼伦贝尔': 'ZBLA',   // 动态表格用名（C0039 批准名单标准名"海拉尔"）
+        '霍林郭勒': 'ZBHZ',   // 航班文件别名：全称，与"霍林河"同 ICAO
+        '呼和': 'ZBHH',       // 航班文件别名：简称，与"呼和浩特"同 ICAO
+        '德宏': 'ZPMS',       // 通用别名：C0039 批准名单标准名"芒市"
+        '成都': 'ZUTF',       // 通用别名：C0039 批准名单标准名"天府"
+        '东京': 'RJAA',       // 通用别名：标准名"东京成田"
+        // ====== 历史标准名别名（批准名单改名后保留兼容） ======
+        '忻州': 'ZBXZ',       // 旧标准名 → 现标准名"五台山"
+        '琼海': 'ZJQH',       // 旧标准名 → 现标准名"博鳌"
+        '成都双流': 'ZUUU',   // 旧标准名 → 现标准名"双流"
+        '曼谷': 'VTBD',       // 旧标准名 → 现标准名"廊曼"
+        '曼谷素万那普': 'VTBS', // 旧标准名 → 现标准名"素旺那普"
+        '素万那普': 'VTBS',   // 通用别称 → 现标准名"素旺那普"
+        '光州': 'RKJB',       // 旧标准名 → 现标准名"务安"
+        '首尔': 'RKSI',       // 旧标准名 → 现标准名"首尔仁川"
+        '胡志明市': 'VVTS',   // 旧标准名 → 现标准名"胡志明"
+        // ====== 非批准名单兼容别名（C0039 批准名单未收录，但历史航班/用户输入可能用到） ======
+        '昭通': 'ZPZT'        // 已移出批准定期运行名单，保留解析兼容
     };
 
     /* ============================================================
