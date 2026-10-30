@@ -7,10 +7,11 @@
  *      - 跨天时段（如 17:00-次日10:00）：结束时间保留「次日」标记，支持次日/第二天/翌日写法
  *      - X 前 关键词（如 17:00前）
  *      - X 后 关键词（如 15:00后）
- *      - 时段首尾拼接：显式段与「X 前」段按书写顺序排列，
- *        取第一个片段的开始 - 最后一个片段的结束
- *        （「X 前」段无显式开始，取发布时间兜底。例：「22:00前有小阵雨，
- *          22:00-24:00短时有中阵雨」，发布 20:30 → 20:30-24:00）
+ *      - 多片段合并：开始时间取第一个解析到的片段；
+ *        结束时间取所有片段中最晚的一个（以结束时间晚的为准）
+ *        （「X 前」段无显式开始，取发布时间兜底。例：
+ *          「17:00前维持偏西风……11:00-14:00有间歇性小雨」，发布 09:17 → 09:17-17:00；
+ *          「22:00前有阵雨，22:00-24:00有雷暴」，发布 20:30 → 20:30-24:00）
  *      - 括号内的辅助说明整体剔除，其中的时刻不作为时段依据
  *        （如「局地短时零星雷暴（概率30%-50%，主要考虑在15-19时）」，
  *          括号里的 15-19 时属于补充描述，不参与解析，避免覆盖真实时段）
@@ -170,7 +171,7 @@
      * 括号处理：括号内的辅助说明（概率、参考时段等）在解析前整体剔除，
      *          其中的时刻不作为时段依据，避免覆盖真实的「X 前 / X 后」时段
      * 位置信息：每个片段记录其在规范化文本中的书写位置（index），
-     *          供 parsePeriod 按原文顺序做「首尾拼接」
+     *          供 parsePeriod 按原文顺序取「第一个解析到的时段」
      * @param {string} forecast 预警内容文本
      * @returns {{
      *   explicitRanges: Array<{start:string,end:string,endNextDay:boolean,index:number}>,
@@ -208,7 +209,7 @@
                 end: match[3],
                 // 结束时间是否标注跨天（次日 / 第二天 / 翌日）
                 endNextDay: !!match[2],
-                // 在规范化文本中的书写位置（用于按原文顺序首尾拼接）
+                // 在规范化文本中的书写位置（用于按原文顺序取第一个时段片段）
                 index: match.index
             });
         }
@@ -243,18 +244,33 @@
     }
 
     /**
+     * 计算时段片段的「结束时间」分钟数（用于比较谁更晚）
+     * - 跨天标记（次日）的结束时间额外 +1440 分钟，确保「次日10:00」晚于当日「24:00」
+     * - 非法结束时间返回 -1，排序时自动排在最前，不会被选为最晚结束
+     * @param {{end: string, endNextDay?: boolean}} segment 时段片段
+     * @returns {number} 分钟数
+     */
+    function segmentEndMinutes(segment) {
+        var mins = parseHHMMToMinutes(segment.end);
+        if (mins == null) return -1;
+        return mins + (segment.endNextDay ? 24 * 60 : 0);
+    }
+
+    /**
      * 解析「发生时段」
      * 规则：
-     *   1. 时段片段首尾拼接：把显式时间段 X-Y 与「X 前」片段按书写顺序排列，
-     *      取第一个片段的开始 - 最后一个片段的结束
-     *      - 显式时间段：开始 = X，结束 = Y（Y 带跨天标记时保留标记）
+     *   1. 多片段合并：按书写顺序排列显式时间段 X-Y 与「X 前」片段，
+     *      开始时间取第一个解析到的片段，结束时间取最晚的结束片段
+     *      - 显式时间段：结束 = Y（Y 带跨天标记时保留标记）
      *      - 「X 前」片段：开始无显式值，按业务口径取发布时间兜底；结束 = X
+     *      - 「晚」的判断按分钟数比较，跨天结束（次日）额外 +24h
      *   2. 仅「X 后」关键词（无显式时间段、无 X 前 时生效）→ 发布时间HH:MM - X
      *      说明：X 后 表示 X 是开始，但无结束时间，退化为「发布时间 - X」
      *   3. 都无法解析 → 空字符串
      * 示例：
      *   "预计17:00前有雷暴"                发布 11:45 → 11:45-17:00
-     *   "22:00前有阵雨，22:00-24:00有雷暴"  发布 20:30 → 20:30-24:00
+     *   "17:00前维持偏西风，11:00-14:00有零星小雨"  发布 09:17 → 09:17-17:00（结束取较晚的 17:00）
+     *   "22:00前有阵雨，22:00-24:00有雷暴"  发布 20:30 → 20:30-24:00（结束取较晚的 24:00）
      *   "17:00-次日10:00大雾"              发布 16:30 → 17:00-次日10:00
      * @param {string} forecast 预警内容
      * @param {string} publishHHMM 发布时间 HH:MM（形如 "11:45"）
@@ -272,7 +288,7 @@
             fallbackStart = patterns.afterTimes[0];
         }
 
-        // 汇总所有时段片段（含书写位置 at，用于按原文顺序做首尾拼接）
+        // 汇总所有时段片段（含书写位置 at，用于按原文顺序取第一个片段）
         var segments = [];
         var i, r;
         for (i = 0; i < patterns.explicitRanges.length; i++) {
@@ -281,7 +297,7 @@
             if (parseHHMMToMinutes(r.start) == null || parseHHMMToMinutes(r.end) == null) continue;
             segments.push({ at: r.index, start: r.start, end: r.end, endNextDay: r.endNextDay });
         }
-        // 「X 前」片段仅在开始时间可确定时才纳入拼接（否则无法构成完整时段）
+        // 「X 前」片段仅在开始时间可确定时才纳入（否则无法构成完整时段）
         if (fallbackStart) {
             for (i = 0; i < patterns.beforeTimes.length; i++) {
                 if (parseHHMMToMinutes(patterns.beforeTimes[i]) == null) continue;
@@ -294,17 +310,20 @@
             }
         }
 
-        // 规则 1: 片段首尾拼接（第一个片段的开始 - 最后一个片段的结束）
+        // 规则 1: 开始取第一个解析到的片段，结束取所有片段中最晚的结束时间
+        //   「以结束时间晚的为准」：多片段时不因先出现的片段（如「22:00前」）
+        //   把整段天气的结束时间截短，保证发生时段覆盖后续预报的时间段
         if (segments.length > 0) {
             segments.sort(function (a, b) { return a.at - b.at; });
             var first = segments[0];
-            var last = segments[segments.length - 1];
-            if (segments.length === 1) return formatRangeText(first);
-            // 跨天标记沿用最后一个片段的结束
+            var latest = first;
+            for (i = 1; i < segments.length; i++) {
+                if (segmentEndMinutes(segments[i]) > segmentEndMinutes(latest)) latest = segments[i];
+            }
             return formatRangeText({
                 start: first.start,
-                end: last.end,
-                endNextDay: last.endNextDay
+                end: latest.end,
+                endNextDay: latest.endNextDay
             });
         }
 
