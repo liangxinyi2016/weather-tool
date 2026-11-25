@@ -6,6 +6,8 @@
  *   2. 右上角展示用户胶囊，便于查看与切换
  *   3. 用户名仅用于后续发布气象产品时的署名，无需验证
  *   4. 持久化：chrome.storage.local 优先，降级 localStorage
+ *   5. 每日北京时间 00:01 自动退出登录（清除已保存的用户身份并要求重新输入）；
+ *      若页面关闭期间已跨过 00:01，则下次打开时同样视为已退出
  *
  * 暴露对象：window.UserIdentity
  *   - init()                       // 初始化 UI 与数据
@@ -23,11 +25,26 @@
     /** 用户名最大长度（超过则截断） */
     var MAX_LEN = 20;
 
+    /** 每日自动退出的北京时间点：00:01（相对当日 0 点的毫秒偏移） */
+    var DAILY_LOGOUT_OFFSET_MS = 60 * 1000;
+
+    /** 北京时间固定为 UTC+8 */
+    var BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+    /** 一天的毫秒数 */
+    var DAY_MS = 24 * 60 * 60 * 1000;
+
     /** 元素引用缓存 */
     var elements = {};
 
     /** 当前用户名（内存态） */
     var currentName = '';
+
+    /** 当前会话的自动退出时刻（时间戳，毫秒） */
+    var expiresAt = 0;
+
+    /** 自动退出定时器句柄 */
+    var logoutTimer = null;
 
     /* ============================================================
      * 持久化：chrome.storage.local 优先，降级 localStorage
@@ -36,25 +53,62 @@
 
     function localKey() { return 'met_tool:' + STORAGE_KEY; }
 
+    /**
+     * 计算下一次自动退出时刻
+     * 规则：取 fromMs 之后最近的北京时间 00:01，与运行环境的本地时区无关
+     * @param {number} fromMs 起始时间戳（毫秒）
+     * @returns {number} 下一次 00:01（北京时间）对应的时间戳（毫秒）
+     */
+    function nextLogoutTimestamp(fromMs) {
+        var t = Number(fromMs);
+        if (!isFinite(t) || t <= 0) t = Date.now();
+
+        // 平移为“北京时区纪元”，使按天取整等价于北京时间当天 0 点
+        var beijing = t + BEIJING_OFFSET_MS;
+        var dayStart = Math.floor(beijing / DAY_MS) * DAY_MS;
+        var candidate = dayStart + DAILY_LOGOUT_OFFSET_MS;
+        // 已过当日 00:01 则顺延到次日
+        if (candidate <= beijing) candidate += DAY_MS;
+        return candidate - BEIJING_OFFSET_MS;
+    }
+
+    /** 读取 localStorage 中的身份载荷（作为 chrome.storage 的冗余备份） */
     function readFromLocalStorage() {
         try {
             var raw = global.localStorage.getItem(localKey());
-            if (!raw) return '';
+            if (!raw) return null;
             var v = JSON.parse(raw);
-            return (v && typeof v.name === 'string') ? v.name : '';
+            if (!v || typeof v.name !== 'string') return null;
+            return v;
         } catch (e) {
-            return '';
+            return null;
         }
     }
 
-    function writeToLocalStorage(name) {
+    function writeToLocalStorage(name, payload) {
         try {
-            var payload = { name: name, updatedAt: new Date().toISOString() };
             global.localStorage.setItem(localKey(), JSON.stringify(payload));
         } catch (e) { /* ignore */ }
     }
 
-    /** 读取用户名（异步） */
+    /** 解析载荷：补齐缺失的自动退出时刻，兼容历史数据 */
+    function normalizePayload(payload) {
+        var p = payload || {};
+        var name = (typeof p.name === 'string') ? p.name : '';
+
+        var exp = Number(p.expiresAt);
+        if (!isFinite(exp) || exp <= 0) {
+            // 历史数据缺少 expiresAt：按 updatedAt 推算，缺失时按当前时间推算
+            var updated = Date.parse(p.updatedAt || '');
+            exp = nextLogoutTimestamp(isFinite(updated) ? updated : Date.now());
+        }
+        return { name: name, expiresAt: exp };
+    }
+
+    /**
+     * 读取用户身份（异步）
+     * @returns {Promise<{name: string, expiresAt: number}>}
+     */
     function load() {
         return new Promise(function (resolve) {
             try {
@@ -62,26 +116,34 @@
                     chrome.storage.local.get(STORAGE_KEY, function (data) {
                         var v = data && data[STORAGE_KEY];
                         if (v && typeof v.name === 'string' && v.name.length > 0) {
-                            resolve(v.name);
+                            resolve(normalizePayload(v));
                         } else {
                             // 降级读取
-                            resolve(readFromLocalStorage());
+                            resolve(normalizePayload(readFromLocalStorage()));
                         }
                     });
                     return;
                 }
             } catch (e) { /* fall through */ }
-            resolve(readFromLocalStorage());
+            resolve(normalizePayload(readFromLocalStorage()));
         });
     }
 
-    /** 写入用户名（异步） */
+    /** 写入用户名（异步），同时记录本次会话的自动退出时刻 */
     function save(name) {
+        var now = Date.now();
+        var payload = {
+            name: name,
+            updatedAt: new Date(now).toISOString(),
+            expiresAt: nextLogoutTimestamp(now)
+        };
+        expiresAt = payload.expiresAt;
+        scheduleLogout();
+
         return new Promise(function (resolve) {
-            var payload = { name: name, updatedAt: new Date().toISOString() };
             var done = function (ok) {
                 // 始终同步写入 localStorage 作为冗余备份
-                writeToLocalStorage(name);
+                writeToLocalStorage(name, payload);
                 resolve(ok);
             };
             try {
@@ -92,6 +154,78 @@
                 }
             } catch (e) { /* fall through */ }
             done(true);
+        });
+    }
+
+    /** 清除已持久化的用户身份（chrome.storage.local + localStorage） */
+    function clearStored() {
+        return new Promise(function (resolve) {
+            var done = function () {
+                try { global.localStorage.removeItem(localKey()); } catch (e) { /* ignore */ }
+                resolve();
+            };
+            try {
+                if (global.chrome && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.remove(STORAGE_KEY, done);
+                    return;
+                }
+            } catch (e) { /* fall through */ }
+            done();
+        });
+    }
+
+    /* ============================================================
+     * 每日 00:01 自动退出
+     * ============================================================ */
+
+    function clearLogoutTimer() {
+        if (logoutTimer) {
+            global.clearTimeout(logoutTimer);
+            logoutTimer = null;
+        }
+    }
+
+    /** 按当前会话的退出时刻安排定时器（无用户名时不需要） */
+    function scheduleLogout() {
+        clearLogoutTimer();
+        if (!currentName || !expiresAt) return;
+
+        var delay = expiresAt - Date.now();
+        if (delay < 0) delay = 0;
+        logoutTimer = global.setTimeout(handleDailyLogout, delay + 20);
+    }
+
+    /** 定时器回调：未到点（如系统时间回拨）则重新排期，到点则退出 */
+    function handleDailyLogout() {
+        logoutTimer = null;
+        if (!currentName) return;
+        if (Date.now() < expiresAt) {
+            scheduleLogout();
+            return;
+        }
+        autoLogout();
+    }
+
+    /** 执行自动退出：清空身份、提示用户并重新弹出用户名弹窗 */
+    function autoLogout() {
+        currentName = '';
+        expiresAt = 0;
+        clearLogoutTimer();
+        renderPill();
+        clearStored();
+
+        if (global.Logger) Logger.info('已按每日 00:01 规则自动退出登录，用户身份已清除');
+        if (global.Toast) global.Toast.show('已自动退出登录，请重新输入用户名', 'warn');
+
+        // 与首次访问一致：延迟弹出，等页面其它资源就位
+        global.setTimeout(openModal, 200);
+    }
+
+    /** 页面重新可见时补一次检查，避免后台标签页定时器被节流导致漏判 */
+    function bindLifecycle() {
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) return;
+            if (currentName && expiresAt && Date.now() >= expiresAt) autoLogout();
         });
     }
 
@@ -262,17 +396,26 @@
         }
 
         bind();
+        bindLifecycle();
         renderPill();
 
-        load().then(function (name) {
-            currentName = name || '';
+        load().then(function (session) {
+            // 页面关闭期间已跨过北京时间 00:01 → 视为已退出登录
+            if (session.name && Date.now() >= session.expiresAt) {
+                autoLogout();
+                return;
+            }
+
+            currentName = session.name || '';
+            expiresAt = session.expiresAt;
             renderPill();
+            scheduleLogout();
+
             if (global.Logger) {
                 Logger.info('用户身份已加载：' + (currentName || '(未设置)'));
             }
             // 首次访问（无用户名）→ 自动弹出
             if (!currentName) {
-                // 略微延迟以让页面其它资源先就位
                 setTimeout(openModal, 200);
             }
         });
